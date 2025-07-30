@@ -162,7 +162,7 @@ class FeatureEngineer:
             
             # Ensure ATR values are positive (replace zeros with small positive values)
             data["atr_14"] = data["atr_14"].replace(0, np.nan)
-            data["atr_14"] = data["atr_14"].fillna(method='ffill').fillna(method='bfill')
+            data["atr_14"] = data["atr_14"].ffill().bfill()
             
         except Exception as e:
             logger.warning(f"ATR calculation failed: {e}, using NaN values")
