@@ -21,9 +21,7 @@ def prepare_features_target(
     """
     # Create target: 1 if price goes up, 0 if down
     data = data.copy()
-    data["Target"] = (data["Close"].shift(-target_lookahead) > data["Close"]).astype(
-        int
-    )
+    data["Target"] = (data["Close"].shift(-target_lookahead) > data["Close"]).astype(int)
 
     # Remove the last few rows where we don't have targets
     data = data.dropna()
@@ -49,16 +47,12 @@ def train_model(X_train: pd.DataFrame, y_train: pd.Series) -> xgb.XGBClassifier:
     Returns:
         xgb.XGBClassifier: Trained model
     """
-    model = xgb.XGBClassifier(
-        random_state=42, eval_metric="logloss"
-    )
+    model = xgb.XGBClassifier(random_state=42, eval_metric="logloss")
     model.fit(X_train, y_train)
     return model
 
 
-def walk_forward_validation(
-    X: pd.DataFrame, y: pd.Series, n_splits: int = 5
-) -> List[float]:
+def walk_forward_validation(X: pd.DataFrame, y: pd.Series, n_splits: int = 5) -> List[float]:
     """
     Perform walk-forward validation on time series data.
 

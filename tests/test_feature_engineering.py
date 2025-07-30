@@ -69,9 +69,7 @@ def test_add_technical_indicators():
     # Verify RSI is within expected range (0-100)
     rsi_values = result["RSI_14"].dropna()
     assert len(rsi_values) > 0, "RSI values should not be all NaN"
-    assert (rsi_values >= 0).all() and (
-        rsi_values <= 100
-    ).all(), "RSI should be between 0 and 100"
+    assert (rsi_values >= 0).all() and (rsi_values <= 100).all(), "RSI should be between 0 and 100"
 
     # Verify SMA calculations are reasonable
     sma_20 = result["SMA_20"].dropna()

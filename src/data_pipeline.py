@@ -20,9 +20,7 @@ def download_data(ticker: str, start_date: str, end_date: str) -> pd.DataFrame:
         data = ticker_obj.history(start=start_date, end=end_date)
 
         if data.empty:
-            raise ValueError(
-                f"No data found for ticker {ticker} in the specified date range"
-            )
+            raise ValueError(f"No data found for ticker {ticker} in the specified date range")
 
         return data
     except Exception as e:
