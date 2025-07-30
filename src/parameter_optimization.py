@@ -384,5 +384,3 @@ class ParameterOptimizer:
             'entry_prices': entry_prices,
             'optimized_data': df_optimized
         }
- 
- 
