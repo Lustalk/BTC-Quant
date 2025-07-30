@@ -158,6 +158,10 @@ class FeatureEngineer:
             window=FEATURE_CONFIG['volatility_indicators']['atr']['window']
         ).average_true_range()
         
+        # Calculate returns if not present
+        if 'returns' not in data.columns:
+            data['returns'] = data['close'].pct_change()
+        
         # Realized Volatility (20-day rolling standard deviation of returns)
         data['realized_volatility_20'] = data['returns'].rolling(
             window=FEATURE_CONFIG['volatility_indicators']['realized_volatility']['window']
