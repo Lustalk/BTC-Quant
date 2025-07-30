@@ -17,6 +17,8 @@ import pandas as pd
 from src.data_pipeline import download_data
 from src.feature_engineering import add_technical_indicators
 from src.model import prepare_features_target, walk_forward_validation
+from src.evaluation import calculate_all_metrics
+from src.strategy_analysis import analyze_strategy_performance, calculate_trade_statistics, print_performance_table
 
 
 def main():
@@ -77,14 +79,50 @@ def main():
         print("Step 4: Running walk-forward validation...")
         scores = walk_forward_validation(X, y, n_splits=args.n_splits)
         
-        # Step 5: Report results
+        # Step 5: Calculate performance metrics
         print("\n" + "=" * 50)
-        print("BACKTESTING RESULTS")
+        print("PERFORMANCE EVALUATION")
         print("=" * 50)
-        print(f"Average Accuracy: {sum(scores) / len(scores):.4f}")
-        print(f"Individual Fold Accuracies: {[f'{s:.4f}' for s in scores]}")
-        print(f"Best Fold: {max(scores):.4f}")
-        print(f"Worst Fold: {min(scores):.4f}")
+        
+        # Calculate model performance metrics
+        model_metrics = {
+            'average_accuracy': sum(scores) / len(scores),
+            'best_fold_accuracy': max(scores),
+            'worst_fold_accuracy': min(scores),
+            'fold_accuracies': scores
+        }
+        
+        print(f"Model Performance:")
+        print(f"  Average Accuracy: {model_metrics['average_accuracy']:.4f}")
+        print(f"  Best Fold: {model_metrics['best_fold_accuracy']:.4f}")
+        print(f"  Worst Fold: {model_metrics['worst_fold_accuracy']:.4f}")
+        print(f"  Individual Folds: {[f'{s:.4f}' for s in scores]}")
+        
+        # Calculate strategy performance (simplified)
+        if len(data_with_features) > 0:
+            prices = data_with_features['Close'].tolist()
+            # Simple strategy: buy when RSI < 30, sell when RSI > 70
+            signals = []
+            for _, row in data_with_features.iterrows():
+                rsi = row.get('RSI_14', 50)
+                if rsi < 30:
+                    signals.append(1)  # Buy
+                elif rsi > 70:
+                    signals.append(-1)  # Sell
+                else:
+                    signals.append(0)  # Hold
+            
+            if len(signals) == len(prices):
+                strategy_metrics = analyze_strategy_performance(prices, signals)
+                trade_stats = calculate_trade_statistics(signals)
+                
+                print("\nStrategy Performance:")
+                print_performance_table(strategy_metrics)
+                
+                print(f"\nTrading Statistics:")
+                print(f"  Total Trades: {trade_stats['total_trades']}")
+                print(f"  Avg Trade Duration: {trade_stats['avg_trade_duration']:.1f} days")
+        
         print("=" * 50)
         
         return 0
