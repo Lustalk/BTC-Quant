@@ -1,0 +1,332 @@
+"""
+Parameter Optimization Module for BTC Quant Trading System.
+
+This module uses Optuna for intelligent hyperparameter optimization of:
+1. Technical indicator parameters (RSI window, SMA periods, etc.)
+2. Take-profit and stop-loss levels
+3. ML model hyperparameters
+"""
+
+import optuna
+import pandas as pd
+import numpy as np
+from typing import Dict, List, Tuple, Any
+import ta
+from sklearn.model_selection import TimeSeriesSplit
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+import xgboost as xgb
+from .evaluation import calculate_all_metrics
+from .strategy_analysis import analyze_strategy_performance
+
+
+class ParameterOptimizer:
+    """Smart parameter optimizer for trading system."""
+    
+    def __init__(self, data: pd.DataFrame, n_trials: int = 100):
+        """
+        Initialize the parameter optimizer.
+        
+        Args:
+            data: Raw OHLCV data
+            n_trials: Number of optimization trials
+        """
+        self.data = data.copy()
+        self.n_trials = n_trials
+        self.best_params = None
+        self.best_score = -np.inf
+        
+    def create_indicators_with_params(self, params: Dict[str, Any]) -> pd.DataFrame:
+        """
+        Create technical indicators with given parameters.
+        
+        Args:
+            params: Dictionary of indicator parameters
+            
+        Returns:
+            DataFrame with indicators
+        """
+        df = self.data.copy()
+        
+        # Trend Indicators with variable parameters
+        df[f"SMA_{params['sma_short']}"] = ta.trend.sma_indicator(df["Close"], window=params['sma_short'])
+        df[f"SMA_{params['sma_long']}"] = ta.trend.sma_indicator(df["Close"], window=params['sma_long'])
+        df[f"EMA_{params['ema_short']}"] = ta.trend.ema_indicator(df["Close"], window=params['ema_short'])
+        df[f"EMA_{params['ema_long']}"] = ta.trend.ema_indicator(df["Close"], window=params['ema_long'])
+        
+        # MACD with variable parameters
+        df["MACD"] = ta.trend.macd(df["Close"], window_fast=params['macd_fast'], 
+                                   window_slow=params['macd_slow'])
+        df["MACD_Signal"] = ta.trend.macd_signal(df["Close"], window_fast=params['macd_fast'],
+                                                 window_slow=params['macd_slow'])
+        df["MACD_Histogram"] = ta.trend.macd_diff(df["Close"], window_fast=params['macd_fast'],
+                                                  window_slow=params['macd_slow'])
+        
+        # Momentum Indicators
+        df[f"RSI_{params['rsi_window']}"] = ta.momentum.rsi(df["Close"], window=params['rsi_window'])
+        df["Stoch_K"] = ta.momentum.stoch(df["High"], df["Low"], df["Close"], window=params['stoch_window'])
+        df["Stoch_D"] = ta.momentum.stoch_signal(df["High"], df["Low"], df["Close"], window=params['stoch_window'])
+        df["Williams_R"] = ta.momentum.williams_r(df["High"], df["Low"], df["Close"], lbp=params['williams_window'])
+        
+        # Volatility Indicators
+        df["BB_Upper"] = ta.volatility.bollinger_hband(df["Close"], window=params['bb_window'])
+        df["BB_Lower"] = ta.volatility.bollinger_lband(df["Close"], window=params['bb_window'])
+        df["BB_Middle"] = ta.volatility.bollinger_mavg(df["Close"], window=params['bb_window'])
+        df["BB_Width"] = ta.volatility.bollinger_wband(df["Close"], window=params['bb_window'])
+        df["ATR"] = ta.volatility.average_true_range(df["High"], df["Low"], df["Close"], window=params['atr_window'])
+        
+        # Volume Indicators
+        df["OBV"] = ta.volume.on_balance_volume(df["Close"], df["Volume"])
+        df["VWAP"] = ta.volume.volume_weighted_average_price(df["High"], df["Low"], df["Close"], df["Volume"])
+        
+        # Price-based features
+        df["Returns"] = df["Close"].pct_change()
+        df["Log_Returns"] = np.log(df["Close"] / df["Close"].shift(1))
+        df["High_Low_Ratio"] = df["High"] / df["Low"]
+        df["Close_Open_Ratio"] = df["Close"] / df["Open"]
+        
+        # Lagged features with variable lags
+        for lag in [params['lag_1'], params['lag_2'], params['lag_3']]:
+            df[f"Close_Lag_{lag}"] = df["Close"].shift(lag)
+            df[f"Volume_Lag_{lag}"] = df["Volume"].shift(lag)
+        
+        # Rolling statistics with variable windows
+        for window in [params['roll_short'], params['roll_medium'], params['roll_long']]:
+            df[f"Close_Std_{window}"] = df["Close"].rolling(window=window).std()
+            df[f"Volume_Mean_{window}"] = df["Volume"].rolling(window=window).mean()
+            df[f"Returns_Mean_{window}"] = df["Returns"].rolling(window=window).mean()
+        
+        return df.dropna()
+    
+    def generate_signals_with_tp_sl(self, df: pd.DataFrame, params: Dict[str, Any]) -> Tuple[List[int], List[float]]:
+        """
+        Generate trading signals with take-profit and stop-loss optimization.
+        
+        Args:
+            df: DataFrame with indicators
+            params: Dictionary containing TP/SL parameters
+            
+        Returns:
+            Tuple of signals and entry prices
+        """
+        signals = []
+        entry_prices = []
+        position = 0
+        entry_price = 0
+        
+        for i, row in df.iterrows():
+            current_price = row['Close']
+            rsi = row.get(f"RSI_{params['rsi_window']}", 50)
+            sma_short = row.get(f"SMA_{params['sma_short']}", current_price)
+            sma_long = row.get(f"SMA_{params['sma_long']}", current_price)
+            
+            signal = 0  # Hold
+            
+            # Entry conditions
+            if position == 0:  # No position
+                # Buy conditions
+                if (rsi < params['rsi_oversold'] and 
+                    current_price > sma_short > sma_long):
+                    signal = 1  # Buy
+                    position = 1
+                    entry_price = current_price
+                    
+            elif position == 1:  # Long position
+                # Take profit
+                if current_price >= entry_price * (1 + params['take_profit']):
+                    signal = -1  # Sell (take profit)
+                    position = 0
+                    entry_price = 0
+                # Stop loss
+                elif current_price <= entry_price * (1 - params['stop_loss']):
+                    signal = -1  # Sell (stop loss)
+                    position = 0
+                    entry_price = 0
+                # RSI overbought exit
+                elif rsi > params['rsi_overbought']:
+                    signal = -1  # Sell
+                    position = 0
+                    entry_price = 0
+            
+            signals.append(signal)
+            entry_prices.append(entry_price)
+        
+        return signals, entry_prices
+    
+    def objective_function(self, trial: optuna.Trial) -> float:
+        """
+        Objective function for Optuna optimization.
+        
+        Args:
+            trial: Optuna trial object
+            
+        Returns:
+            Optimization score (higher is better)
+        """
+        # Define parameter search spaces
+        params = {
+            # Indicator parameters
+            'sma_short': trial.suggest_int('sma_short', 5, 30),
+            'sma_long': trial.suggest_int('sma_long', 20, 100),
+            'ema_short': trial.suggest_int('ema_short', 5, 20),
+            'ema_long': trial.suggest_int('ema_long', 20, 50),
+            'rsi_window': trial.suggest_int('rsi_window', 10, 30),
+            'rsi_oversold': trial.suggest_int('rsi_oversold', 20, 40),
+            'rsi_overbought': trial.suggest_int('rsi_overbought', 60, 80),
+            'stoch_window': trial.suggest_int('stoch_window', 10, 20),
+            'williams_window': trial.suggest_int('williams_window', 10, 20),
+            'bb_window': trial.suggest_int('bb_window', 10, 30),
+            'atr_window': trial.suggest_int('atr_window', 10, 20),
+            'macd_fast': trial.suggest_int('macd_fast', 8, 15),
+            'macd_slow': trial.suggest_int('macd_slow', 20, 30),
+            
+            # Lag parameters
+            'lag_1': trial.suggest_int('lag_1', 1, 5),
+            'lag_2': trial.suggest_int('lag_2', 3, 10),
+            'lag_3': trial.suggest_int('lag_3', 5, 15),
+            
+            # Rolling window parameters
+            'roll_short': trial.suggest_int('roll_short', 3, 10),
+            'roll_medium': trial.suggest_int('roll_medium', 10, 20),
+            'roll_long': trial.suggest_int('roll_long', 20, 50),
+            
+            # TP/SL parameters
+            'take_profit': trial.suggest_float('take_profit', 0.02, 0.10),
+            'stop_loss': trial.suggest_float('stop_loss', 0.01, 0.05),
+            
+            # ML model parameters
+            'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.3),
+            'max_depth': trial.suggest_int('max_depth', 3, 10),
+            'n_estimators': trial.suggest_int('n_estimators', 50, 300),
+            'subsample': trial.suggest_float('subsample', 0.6, 1.0),
+            'colsample_bytree': trial.suggest_float('colsample_bytree', 0.6, 1.0),
+        }
+        
+        try:
+            # Create indicators with optimized parameters
+            df_with_indicators = self.create_indicators_with_params(params)
+            
+            # Generate signals with TP/SL
+            signals, entry_prices = self.generate_signals_with_tp_sl(df_with_indicators, params)
+            
+            # Calculate strategy performance
+            prices = df_with_indicators['Close'].tolist()
+            if len(signals) == len(prices):
+                strategy_metrics = analyze_strategy_performance(prices, signals)
+                
+                # Calculate ML performance
+                X, y = self.prepare_features_target(df_with_indicators)
+                ml_score = self.evaluate_ml_performance(X, y, params)
+                
+                # Combined score (70% strategy, 30% ML)
+                combined_score = (0.7 * strategy_metrics.get('sharpe_ratio', 0) + 
+                                0.3 * ml_score)
+                
+                return combined_score
+            else:
+                return -1000  # Penalty for invalid signals
+                
+        except Exception as e:
+            print(f"Trial failed: {e}")
+            return -1000  # Penalty for failed trials
+    
+    def prepare_features_target(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series]:
+        """Prepare features and target for ML model."""
+        df = df.copy()
+        df["Target"] = (df["Close"].shift(-1) > df["Close"]).astype(int)
+        df = df.dropna()
+        
+        exclude_cols = ["Open", "High", "Low", "Close", "Volume", "Target"]
+        feature_cols = [col for col in df.columns if col not in exclude_cols]
+        
+        X = df[feature_cols]
+        y = df["Target"]
+        
+        return X, y
+    
+    def evaluate_ml_performance(self, X: pd.DataFrame, y: pd.Series, params: Dict[str, Any]) -> float:
+        """Evaluate ML model performance with given parameters."""
+        try:
+            tscv = TimeSeriesSplit(n_splits=3)
+            scores = []
+            
+            for train_idx, test_idx in tscv.split(X):
+                X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
+                y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+                
+                model = xgb.XGBClassifier(
+                    learning_rate=params['learning_rate'],
+                    max_depth=params['max_depth'],
+                    n_estimators=params['n_estimators'],
+                    subsample=params['subsample'],
+                    colsample_bytree=params['colsample_bytree'],
+                    random_state=42,
+                    eval_metric="logloss"
+                )
+                
+                model.fit(X_train, y_train)
+                y_pred = model.predict(X_test)
+                
+                # Use F1 score for balanced evaluation
+                f1 = f1_score(y_test, y_pred, average='weighted')
+                scores.append(f1)
+            
+            return np.mean(scores)
+        except:
+            return 0.0
+    
+    def optimize(self) -> Dict[str, Any]:
+        """
+        Run the optimization process.
+        
+        Returns:
+            Dictionary with best parameters and results
+        """
+        print(f"Starting optimization with {self.n_trials} trials...")
+        
+        study = optuna.create_study(
+            direction="maximize",
+            sampler=optuna.samplers.TPESampler(seed=42)
+        )
+        
+        study.optimize(self.objective_function, n_trials=self.n_trials)
+        
+        self.best_params = study.best_params
+        self.best_score = study.best_value
+        
+        print(f"Best score: {self.best_score:.4f}")
+        print("Best parameters:")
+        for key, value in self.best_params.items():
+            print(f"  {key}: {value}")
+        
+        return {
+            'best_params': self.best_params,
+            'best_score': self.best_score,
+            'study': study
+        }
+    
+    def get_optimized_results(self) -> Dict[str, Any]:
+        """Get final results with optimized parameters."""
+        if self.best_params is None:
+            raise ValueError("Must run optimize() first")
+        
+        # Create indicators with best parameters
+        df_optimized = self.create_indicators_with_params(self.best_params)
+        
+        # Generate signals with optimized TP/SL
+        signals, entry_prices = self.generate_signals_with_tp_sl(df_optimized, self.best_params)
+        
+        # Calculate final performance
+        prices = df_optimized['Close'].tolist()
+        strategy_metrics = analyze_strategy_performance(prices, signals)
+        
+        # Calculate ML performance
+        X, y = self.prepare_features_target(df_optimized)
+        ml_score = self.evaluate_ml_performance(X, y, self.best_params)
+        
+        return {
+            'strategy_metrics': strategy_metrics,
+            'ml_score': ml_score,
+            'signals': signals,
+            'entry_prices': entry_prices,
+            'optimized_data': df_optimized
+        } 
