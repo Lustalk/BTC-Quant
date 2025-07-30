@@ -1,8 +1,23 @@
 """
-Professional Bitcoin Trading Analysis - Source Package
-Production-ready quantitative trading system with statistical rigor.
+BTC Technical Alpha Project - Source Package
 """
 
 __version__ = "1.0.0"
-__author__ = "Professional Trading Team"
-__description__ = "Statistically rigorous quantitative trading system for Bitcoin analysis" 
+__author__ = "Quantitative Finance Team"
+
+# Import main classes for easy access
+from .data_pipeline import DataPipeline
+from .feature_engineering import FeatureEngineer
+from .validation import WalkForwardValidator
+from .modeling import XGBoostModel
+from .evaluation import PerformanceEvaluator
+from .professional_visualizations import ProfessionalVisualizer
+
+__all__ = [
+    'DataPipeline',
+    'FeatureEngineer', 
+    'WalkForwardValidator',
+    'XGBoostModel',
+    'PerformanceEvaluator',
+    'ProfessionalVisualizer'
+] 
