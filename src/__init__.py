@@ -1,1 +1,1 @@
-# BTC Quant project 
+# BTC Quant project

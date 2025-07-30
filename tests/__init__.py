@@ -1,1 +1,1 @@
-# Test package for BTC Quant project 
+# Test package for BTC Quant project
