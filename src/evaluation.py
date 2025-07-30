@@ -44,6 +44,39 @@ def calculate_sharpe_ratio(returns: List[float], risk_free_rate: float = 0.02) -
     return sharpe * np.sqrt(252)  # Annualized
 
 
+def calculate_sortino_ratio(returns: List[float], risk_free_rate: float = 0.02) -> float:
+    """
+    Calculate the Sortino ratio (downside deviation only).
+
+    Args:
+        returns (List[float]): List of returns
+        risk_free_rate (float): Annual risk-free rate (default: 0.02)
+
+    Returns:
+        float: Sortino ratio
+    """
+    if not returns:
+        return 0.0
+
+    returns_array = np.array(returns)
+    excess_returns = returns_array - (risk_free_rate / 252)  # Daily risk-free rate
+
+    # Calculate downside deviation (only negative returns)
+    negative_returns = excess_returns[excess_returns < 0]
+    
+    if len(negative_returns) == 0:
+        # If no negative returns, Sortino ratio is infinite (perfect)
+        return 10.0  # Cap at reasonable value
+    
+    downside_deviation = np.sqrt(np.mean(negative_returns ** 2))
+    
+    if downside_deviation == 0:
+        return 0.0
+    
+    sortino = np.mean(excess_returns) / downside_deviation
+    return sortino * np.sqrt(252)  # Annualized
+
+
 def calculate_max_drawdown(returns: List[float]) -> float:
     """
     Calculate the maximum drawdown.
@@ -196,6 +229,7 @@ def calculate_all_metrics(
     """
     metrics = {
         "sharpe_ratio": calculate_sharpe_ratio(returns),
+        "sortino_ratio": calculate_sortino_ratio(returns),
         "max_drawdown": calculate_max_drawdown(returns),
         "volatility": calculate_volatility(returns),
         "win_rate": calculate_win_rate(returns),

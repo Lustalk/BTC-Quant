@@ -102,6 +102,7 @@ def main():
         print("\n📈 OPTIMIZED PERFORMANCE METRICS:")
         print("-" * 40)
         print(f"   📊 Strategy Performance:")
+        print(f"      • Sortino Ratio: {strategy_metrics.get('sortino_ratio', 0):.4f}")
         print(f"      • Sharpe Ratio: {strategy_metrics.get('sharpe_ratio', 0):.4f}")
         print(f"      • Total Return: {strategy_metrics.get('total_return', 0):.2%}")
         print(f"      • Max Drawdown: {strategy_metrics.get('max_drawdown', 0):.2%}")

@@ -253,7 +253,8 @@ class ParameterOptimizer:
                 X, y = self.prepare_features_target(df_with_indicators)
                 ml_score = self.evaluate_ml_performance(X, y, params)
                 
-                # Enhanced scoring with better handling of edge cases
+                # Enhanced scoring with Sortino ratio as primary metric
+                sortino_ratio = strategy_metrics.get('sortino_ratio', 0)
                 sharpe_ratio = strategy_metrics.get('sharpe_ratio', 0)
                 total_return = strategy_metrics.get('total_return', 0)
                 win_rate = strategy_metrics.get('win_rate', 0)
@@ -266,10 +267,11 @@ class ParameterOptimizer:
                 if win_rate < 0.3:
                     return -500
                 
-                # Combined score with better weighting
-                strategy_score = (0.5 * sharpe_ratio + 
-                                0.3 * total_return + 
-                                0.2 * win_rate)
+                # Combined score with Sortino ratio as primary metric
+                strategy_score = (0.6 * sortino_ratio + 
+                                0.2 * sharpe_ratio + 
+                                0.1 * total_return + 
+                                0.1 * win_rate)
                 
                 combined_score = (0.7 * strategy_score + 0.3 * ml_score)
                 
