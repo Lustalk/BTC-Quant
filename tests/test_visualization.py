@@ -44,16 +44,16 @@ class TestVisualization:
         }
         self.sample_scores = [0.52, 0.48, 0.54, 0.51, 0.49]
 
-    @patch("matplotlib.pyplot.show")
-    def test_plot_price_and_signals(self, mock_show):
+    @patch("matplotlib.pyplot.close")
+    def test_plot_price_and_signals(self, mock_close):
         """Test plot_price_and_signals function."""
         # Test with valid data
         plot_price_and_signals(self.sample_prices, self.sample_signals)
-        mock_show.assert_called_once()
+        mock_close.assert_called_once()
 
         # Test with empty signals
         plot_price_and_signals(self.sample_prices, [0] * len(self.sample_prices))
-        assert mock_show.call_count == 2
+        assert mock_close.call_count == 2
 
         # Test with save path
         with patch("matplotlib.pyplot.savefig") as mock_save:
@@ -62,61 +62,61 @@ class TestVisualization:
             )
             mock_save.assert_called_once()
 
-    @patch("matplotlib.pyplot.show")
-    def test_plot_performance_metrics(self, mock_show):
+    @patch("matplotlib.pyplot.close")
+    def test_plot_performance_metrics(self, mock_close):
         """Test plot_performance_metrics function."""
         # Test with valid metrics
         plot_performance_metrics(self.sample_metrics)
-        mock_show.assert_called_once()
+        mock_close.assert_called_once()
 
         # Test with empty metrics
         plot_performance_metrics({})
-        assert mock_show.call_count == 2
+        assert mock_close.call_count == 2
 
         # Test with non-numeric metrics
         mixed_metrics = {"text": "not_numeric", "number": 42}
         plot_performance_metrics(mixed_metrics)
-        assert mock_show.call_count == 3
+        assert mock_close.call_count == 3
 
         # Test with save path
         with patch("matplotlib.pyplot.savefig") as mock_save:
             plot_performance_metrics(self.sample_metrics, save_path="test_metrics.png")
             mock_save.assert_called_once()
 
-    @patch("matplotlib.pyplot.show")
-    def test_plot_model_accuracy(self, mock_show):
+    @patch("matplotlib.pyplot.close")
+    def test_plot_model_accuracy(self, mock_close):
         """Test plot_model_accuracy function."""
         # Test with valid scores
         plot_model_accuracy(self.sample_scores)
-        mock_show.assert_called_once()
+        mock_close.assert_called_once()
 
         # Test with single score
         plot_model_accuracy([0.5])
-        assert mock_show.call_count == 2
+        assert mock_close.call_count == 2
 
         # Test with custom title
         plot_model_accuracy(self.sample_scores, title="Custom Title")
-        assert mock_show.call_count == 3
+        assert mock_close.call_count == 3
 
         # Test with save path
         with patch("matplotlib.pyplot.savefig") as mock_save:
             plot_model_accuracy(self.sample_scores, save_path="test_accuracy.png")
             mock_save.assert_called_once()
 
-    @patch("matplotlib.pyplot.show")
-    def test_create_performance_dashboard(self, mock_show):
+    @patch("matplotlib.pyplot.close")
+    def test_create_performance_dashboard(self, mock_close):
         """Test create_performance_dashboard function."""
         # Test with valid data
         create_performance_dashboard(
             self.sample_prices, self.sample_signals, self.sample_metrics, self.sample_scores
         )
-        mock_show.assert_called_once()
+        mock_close.assert_called_once()
 
         # Test with empty metrics
         create_performance_dashboard(
             self.sample_prices, self.sample_signals, {}, self.sample_scores
         )
-        assert mock_show.call_count == 2
+        assert mock_close.call_count == 2
 
         # Test with save path
         with patch("matplotlib.pyplot.savefig") as mock_save:
@@ -135,7 +135,7 @@ class TestVisualization:
         short_prices = [100, 101]
         short_signals = [0, 1]
 
-        with patch("matplotlib.pyplot.show"):
+        with patch("matplotlib.pyplot.close"):
             plot_price_and_signals(short_prices, short_signals)
             plot_performance_metrics({"single_metric": 0.5})
             plot_model_accuracy([0.5])

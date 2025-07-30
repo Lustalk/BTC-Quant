@@ -5,6 +5,8 @@ This module provides simple, professional charts for displaying
 trading results and system performance.
 """
 
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
@@ -83,7 +85,10 @@ def plot_price_and_signals(
 
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches="tight")
-    plt.show()
+    else:
+        # Save to a default location instead of showing
+        plt.savefig("output/price_signals.png", dpi=300, bbox_inches="tight")
+    plt.close()  # Close the figure to free memory
 
 
 def plot_performance_metrics(metrics: Dict[str, float], save_path: Optional[str] = None) -> None:
@@ -116,7 +121,9 @@ def plot_performance_metrics(metrics: Dict[str, float], save_path: Optional[str]
         plt.tight_layout()
         if save_path:
             plt.savefig(save_path, dpi=300, bbox_inches="tight")
-        plt.show()
+        else:
+            plt.savefig("output/performance_metrics.png", dpi=300, bbox_inches="tight")
+        plt.close()
         return
 
     fig, axes = plt.subplots(2, 2, figsize=(12, 10))
@@ -174,7 +181,9 @@ def plot_performance_metrics(metrics: Dict[str, float], save_path: Optional[str]
 
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches="tight")
-    plt.show()
+    else:
+        plt.savefig("output/performance_metrics_detailed.png", dpi=300, bbox_inches="tight")
+    plt.close()
 
 
 def plot_model_accuracy(
@@ -208,7 +217,9 @@ def plot_model_accuracy(
         plt.tight_layout()
         if save_path:
             plt.savefig(save_path, dpi=300, bbox_inches="tight")
-        plt.show()
+        else:
+            plt.savefig("output/model_accuracy.png", dpi=300, bbox_inches="tight")
+        plt.close()
         return
 
     fig, ax = plt.subplots(figsize=(10, 6))
@@ -237,7 +248,9 @@ def plot_model_accuracy(
 
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches="tight")
-    plt.show()
+    else:
+        plt.savefig("output/model_accuracy_detailed.png", dpi=300, bbox_inches="tight")
+    plt.close()
 
 
 def create_performance_dashboard(
@@ -332,4 +345,6 @@ def create_performance_dashboard(
 
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches="tight")
-    plt.show()
+    else:
+        plt.savefig("output/performance_dashboard.png", dpi=300, bbox_inches="tight")
+    plt.close()
