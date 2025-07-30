@@ -4,36 +4,8 @@ services:
   btc-quant:
     build: .
     volumes:
-      - ./data:/app/data
-      - ./results:/app/results
-      - ./exports:/app/exports
-      - ./logs:/app/logs
+      - .:/app
+    working_dir: /app
     environment:
       - PYTHONPATH=/app
-      - BTC_SYMBOL=${BTC_SYMBOL:-BTC-USD}
-      - BTC_START_DATE=${BTC_START_DATE:-2017-01-01}
-      - BTC_END_DATE=${BTC_END_DATE:-2024-12-31}
-      - XGB_N_ESTIMATORS=${XGB_N_ESTIMATORS:-200}
-      - VAL_INITIAL_TRAIN_YEARS=${VAL_INITIAL_TRAIN_YEARS:-2}
-      - ANALYSIS_MODE=${ANALYSIS_MODE:-core}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-    env_file:
-      - .env
-    command: python main.py
-    restart: unless-stopped
-
-  jupyter:
-    build: .
-    ports:
-      - "8888:8888"
-    volumes:
-      - ./data:/app/data
-      - ./results:/app/results
-      - ./exports:/app/exports
-      - ./logs:/app/logs
-      - ./notebooks:/app/notebooks
-    environment:
-      - PYTHONPATH=/app
-      - JUPYTER_ENABLE_LAB=yes
-    command: jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root
-    restart: unless-stopped 
+    command: echo "BTC Quant project initialized successfully" 
