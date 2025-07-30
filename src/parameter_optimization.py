@@ -332,7 +332,7 @@ class ParameterOptimizer:
         
         return X, y
     
-    def evaluate_ml_performance(self, X: pd.DataFrame, y: pd.Series, params: Dict[str, Any]) -> float:
+    def evaluate_ml_performance(self, X: pd.DataFrame, y: pd.Series, params: Dict[str, Any]) -> Tuple[float, List[float]]:
         """Evaluate ML model performance with given parameters."""
         try:
             tscv = TimeSeriesSplit(n_splits=3)
@@ -359,9 +359,9 @@ class ParameterOptimizer:
                 f1 = f1_score(y_test, y_pred, average='weighted')
                 scores.append(f1)
             
-            return np.mean(scores)
+            return np.mean(scores), scores
         except Exception:
-            return 0.0
+            return 0.0, [0.0, 0.0, 0.0]
     
     def optimize(self) -> Dict[str, Any]:
         """
@@ -410,11 +410,12 @@ class ParameterOptimizer:
         
         # Calculate ML performance
         X, y = self.prepare_features_target(df_optimized)
-        ml_score = self.evaluate_ml_performance(X, y, self.best_params)
+        ml_score, fold_scores = self.evaluate_ml_performance(X, y, self.best_params)
         
         return {
             'strategy_metrics': strategy_metrics,
             'ml_score': ml_score,
+            'fold_scores': fold_scores,
             'signals': signals,
             'entry_prices': entry_prices,
             'optimized_data': df_optimized

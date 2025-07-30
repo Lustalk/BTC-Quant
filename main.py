@@ -22,6 +22,7 @@ from src.evaluation import calculate_all_metrics
 from src.strategy_analysis import analyze_strategy_performance, calculate_trade_statistics, print_performance_table
 from src.parameter_optimization import ParameterOptimizer
 from src.transaction_costs import TransactionCostModel
+from src.visualization import plot_model_accuracy, plot_performance_metrics
 
 
 def main():
@@ -178,6 +179,35 @@ def main():
                 print(f"\nTrading Statistics:")
                 print(f"  Total Trades: {trade_stats['total_trades']}")
                 print(f"  Avg Trade Duration: {trade_stats['avg_trade_duration']:.1f} days")
+                
+                # Generate visualizations
+                if args.optimize:
+                    # Get optimized results for visualization
+                    results = optimizer.get_optimized_results()
+                    fold_scores = results['fold_scores']
+                    
+                    # Plot model accuracy with optimized parameters
+                    plot_model_accuracy(
+                        fold_scores,
+                        "ML Model Accuracy - Optimized Parameters",
+                        "output/model_accuracy_detailed.png"
+                    )
+                    print("✅ Model accuracy visualization saved")
+                    
+                    # Plot performance metrics
+                    plot_performance_metrics(
+                        strategy_metrics,
+                        "output/performance_metrics_detailed.png"
+                    )
+                    print("✅ Performance metrics visualization saved")
+                else:
+                    # Plot model accuracy with baseline parameters
+                    plot_model_accuracy(
+                        scores,
+                        "ML Model Accuracy - Baseline Parameters",
+                        "output/model_accuracy_detailed.png"
+                    )
+                    print("✅ Model accuracy visualization saved")
         
         print("=" * 50)
         

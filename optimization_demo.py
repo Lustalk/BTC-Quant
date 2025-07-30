@@ -18,7 +18,7 @@ import numpy as np
 
 from src.data_pipeline import download_data
 from src.parameter_optimization import ParameterOptimizer
-from src.visualization import plot_price_and_signals, plot_performance_metrics
+from src.visualization import plot_price_and_signals, plot_performance_metrics, plot_model_accuracy
 
 
 def run_optimization_demo():
@@ -65,6 +65,7 @@ def run_optimization_demo():
         
         strategy_metrics = results['strategy_metrics']
         ml_score = results['ml_score']
+        fold_scores = results['fold_scores']
         signals = results['signals']
         prices = results['optimized_data']['Close'].tolist()
         
@@ -94,6 +95,14 @@ def run_optimization_demo():
             "output/optimized_performance.png"
         )
         print("   ✅ Performance metrics saved")
+        
+        # Plot model accuracy
+        plot_model_accuracy(
+            fold_scores,
+            "ML Model Accuracy - Optimized Parameters",
+            "output/model_accuracy_detailed.png"
+        )
+        print("   ✅ Model accuracy visualization saved")
         
         # Display best parameters
         print("\n🏆 Best Parameters Found:")
