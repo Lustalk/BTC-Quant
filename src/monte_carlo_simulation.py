@@ -1,475 +1,472 @@
 """
 Monte Carlo Simulation Module
-1000+ bootstraps for statistical significance testing
+Statistical significance testing for trading strategy performance
 """
 
-import numpy as np
 import pandas as pd
-from datetime import datetime, timedelta
+import numpy as np
 import logging
-import os
+from typing import Dict, List, Tuple, Optional
 from scipy import stats
-import matplotlib.pyplot as plt
-import seaborn as sns
+from scipy.stats import norm
+import warnings
 
+warnings.filterwarnings("ignore")
+
+from config import ADVANCED_CONFIG
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 class MonteCarloSimulator:
     """
     Monte Carlo simulation for statistical significance testing
     """
-    
-    def __init__(self, n_simulations=1000, random_state=42):
-        self.n_simulations = n_simulations
-        self.random_state = random_state
+
+    def __init__(self, n_simulations: int = None):
+        """
+        Initialize Monte Carlo simulator
+
+        Args:
+            n_simulations: Number of simulations to run
+        """
+        self.n_simulations = n_simulations or ADVANCED_CONFIG["monte_carlo"]["n_simulations"]
         self.simulation_results = []
-        self.bootstrap_results = []
-        
-    def bootstrap_returns(self, returns, n_bootstrap=1000):
+        self.regime_results = []
+
+    def simulate_strategy_performance(
+        self,
+        returns: pd.Series,
+        probabilities: pd.Series,
+        benchmark_returns: pd.Series = None,
+        n_simulations: int = None,
+    ) -> Dict:
         """
-        Perform bootstrap resampling of returns
+        Run Monte Carlo simulation to test statistical significance
+
+        Args:
+            returns: Strategy returns
+            probabilities: Model prediction probabilities
+            benchmark_returns: Benchmark returns for comparison
+            n_simulations: Number of simulations
+
+        Returns:
+            Dictionary with simulation results and statistical tests
         """
-        np.random.seed(self.random_state)
+        n_simulations = n_simulations or self.n_simulations
+        logger.info(f"Running {n_simulations} Monte Carlo simulations...")
+
+        # Align returns and probabilities to same length
+        min_length = min(len(returns), len(probabilities))
+        returns = returns.iloc[:min_length]
+        probabilities = probabilities.iloc[:min_length]
         
-        bootstrap_samples = []
-        for _ in range(n_bootstrap):
-            # Bootstrap sample with replacement
-            bootstrap_indices = np.random.choice(
-                len(returns), size=len(returns), replace=True
+        logger.info(f"Aligned data: {min_length} observations")
+        
+        # Calculate actual strategy performance
+        actual_sharpe = self._calculate_sharpe_ratio(returns)
+        actual_sortino = self._calculate_sortino_ratio(returns)
+        actual_max_dd = self._calculate_max_drawdown(returns)
+
+        # Calculate actual excess returns vs benchmark
+        if benchmark_returns is not None:
+            actual_excess_returns = returns - benchmark_returns
+            actual_excess_sharpe = self._calculate_sharpe_ratio(actual_excess_returns)
+        else:
+            actual_excess_returns = None
+            actual_excess_sharpe = None
+
+        # Run simulations
+        simulation_sharpes = []
+        simulation_sortinos = []
+        simulation_max_dds = []
+        simulation_excess_sharpes = []
+
+        for i in range(n_simulations):
+            # Generate random signals based on actual probability distribution
+            random_signals = self._generate_random_signals(probabilities)
+            
+            # Calculate simulated returns
+            simulated_returns = random_signals * returns
+            
+            # Calculate metrics for this simulation
+            sim_sharpe = self._calculate_sharpe_ratio(simulated_returns)
+            sim_sortino = self._calculate_sortino_ratio(simulated_returns)
+            sim_max_dd = self._calculate_max_drawdown(simulated_returns)
+            
+            simulation_sharpes.append(sim_sharpe)
+            simulation_sortinos.append(sim_sortino)
+            simulation_max_dds.append(sim_max_dd)
+
+            # Calculate excess returns if benchmark provided
+            if benchmark_returns is not None:
+                sim_excess_returns = simulated_returns - benchmark_returns
+                sim_excess_sharpe = self._calculate_sharpe_ratio(sim_excess_returns)
+                simulation_excess_sharpes.append(sim_excess_sharpe)
+
+        # Calculate statistical significance
+        sharpe_p_value = self._calculate_p_value(
+            simulation_sharpes, actual_sharpe, "sharpe"
+        )
+        sortino_p_value = self._calculate_p_value(
+            simulation_sortinos, actual_sortino, "sortino"
+        )
+        max_dd_p_value = self._calculate_p_value(
+            simulation_max_dds, actual_max_dd, "max_drawdown"
+        )
+
+        if benchmark_returns is not None:
+            excess_sharpe_p_value = self._calculate_p_value(
+                simulation_excess_sharpes, actual_excess_sharpe, "excess_sharpe"
             )
-            bootstrap_sample = returns.iloc[bootstrap_indices]
-            bootstrap_samples.append(bootstrap_sample)
-        
-        return bootstrap_samples
-    
-    def simulate_strategy_performance(self, returns, probabilities, threshold=0.52):
+        else:
+            excess_sharpe_p_value = None
+
+        # Store results
+        results = {
+            "actual_metrics": {
+                "sharpe_ratio": actual_sharpe,
+                "sortino_ratio": actual_sortino,
+                "max_drawdown": actual_max_dd,
+                "excess_sharpe": actual_excess_sharpe,
+            },
+            "simulation_metrics": {
+                "sharpe_ratios": simulation_sharpes,
+                "sortino_ratios": simulation_sortinos,
+                "max_drawdowns": simulation_max_dds,
+                "excess_sharpe_ratios": simulation_excess_sharpes,
+            },
+            "statistical_significance": {
+                "sharpe_p_value": sharpe_p_value,
+                "sortino_p_value": sortino_p_value,
+                "max_dd_p_value": max_dd_p_value,
+                "excess_sharpe_p_value": excess_sharpe_p_value,
+            },
+            "confidence_intervals": {
+                "sharpe_ci": self._calculate_confidence_interval(simulation_sharpes),
+                "sortino_ci": self._calculate_confidence_interval(simulation_sortinos),
+                "max_dd_ci": self._calculate_confidence_interval(simulation_max_dds),
+            },
+            "simulation_count": n_simulations,
+        }
+
+        self.simulation_results.append(results)
+        return results
+
+    def _generate_random_signals(self, probabilities: pd.Series) -> np.ndarray:
         """
-        Simulate strategy performance with Monte Carlo
+        Generate random trading signals based on probability distribution
+
+        Args:
+            probabilities: Model prediction probabilities
+
+        Returns:
+            Array of random signals (0 or 1)
         """
-        logger.info(f"Starting Monte Carlo simulation with {self.n_simulations} iterations...")
-        
-        simulation_results = []
-        
-        for i in range(self.n_simulations):
-            # Bootstrap sample
-            bootstrap_indices = np.random.choice(
-                len(returns), size=len(returns), replace=True
-            )
-            
-            bootstrap_returns = returns.iloc[bootstrap_indices]
-            bootstrap_probs = probabilities.iloc[bootstrap_indices]
-            
-            # Calculate strategy returns
-            positions = (bootstrap_probs > threshold).astype(int)
-            strategy_returns = positions * bootstrap_returns
-            
-            # Calculate metrics
-            total_return = (1 + strategy_returns).prod() - 1
-            buy_hold_return = (1 + bootstrap_returns).prod() - 1
-            excess_return = total_return - buy_hold_return
-            
-            # Risk metrics
-            sharpe_ratio = self.calculate_sharpe_ratio(strategy_returns)
-            max_drawdown = self.calculate_max_drawdown(strategy_returns)
-            volatility = strategy_returns.std() * np.sqrt(252)
-            
-            # Win rate
-            win_rate = (strategy_returns > 0).mean()
-            
-            result = {
-                'simulation': i + 1,
-                'total_return': total_return,
-                'buy_hold_return': buy_hold_return,
-                'excess_return': excess_return,
-                'sharpe_ratio': sharpe_ratio,
-                'max_drawdown': max_drawdown,
-                'volatility': volatility,
-                'win_rate': win_rate,
-                'alpha': excess_return,
-                'beta': self.calculate_beta(strategy_returns, bootstrap_returns)
-            }
-            
-            simulation_results.append(result)
-            
-            # Log progress
-            if (i + 1) % 100 == 0:
-                logger.info(f"Completed {i + 1}/{self.n_simulations} simulations...")
-        
-        self.simulation_results = simulation_results
-        logger.info("Monte Carlo simulation completed")
-        
-        return simulation_results
-    
-    def calculate_sharpe_ratio(self, returns, risk_free_rate=0.02):
+        # Use actual probability distribution to generate random signals
+        random_signals = np.random.binomial(1, probabilities.values)
+        return random_signals
+
+    def _calculate_sharpe_ratio(self, returns: pd.Series, risk_free_rate: float = 0.02) -> float:
         """
         Calculate Sharpe ratio
+
+        Args:
+            returns: Return series
+            risk_free_rate: Annual risk-free rate
+
+        Returns:
+            Sharpe ratio
         """
+        if len(returns) == 0 or returns.std() == 0:
+            return 0.0
+        
+        excess_returns = returns - risk_free_rate / 252  # Daily risk-free rate
+        return excess_returns.mean() / returns.std() * np.sqrt(252)
+
+    def _calculate_sortino_ratio(self, returns: pd.Series, risk_free_rate: float = 0.02) -> float:
+        """
+        Calculate Sortino ratio
+
+        Args:
+            returns: Return series
+            risk_free_rate: Annual risk-free rate
+
+        Returns:
+            Sortino ratio
+        """
+        if len(returns) == 0:
+            return 0.0
+        
         excess_returns = returns - risk_free_rate / 252
-        if returns.std() == 0:
-            return 0
-        return np.sqrt(252) * excess_returns.mean() / returns.std()
-    
-    def calculate_max_drawdown(self, returns):
+        downside_returns = returns[returns < 0]
+        
+        if len(downside_returns) == 0:
+            return float('inf') if excess_returns.mean() > 0 else 0.0
+        
+        downside_deviation = downside_returns.std()
+        if downside_deviation == 0:
+            return 0.0
+        
+        return excess_returns.mean() / downside_deviation * np.sqrt(252)
+
+    def _calculate_max_drawdown(self, returns: pd.Series) -> float:
         """
         Calculate maximum drawdown
+
+        Args:
+            returns: Return series
+
+        Returns:
+            Maximum drawdown as percentage
         """
-        cumulative = (1 + returns).cumprod()
-        running_max = cumulative.expanding().max()
-        drawdown = (cumulative - running_max) / running_max
+        if len(returns) == 0:
+            return 0.0
+        
+        cumulative_returns = (1 + returns).cumprod()
+        running_max = cumulative_returns.expanding().max()
+        drawdown = (cumulative_returns - running_max) / running_max
         return drawdown.min()
-    
-    def calculate_beta(self, strategy_returns, market_returns):
+
+    def _calculate_p_value(
+        self, simulation_values: List[float], actual_value: float, metric_name: str
+    ) -> float:
         """
-        Calculate beta relative to market
+        Calculate p-value for statistical significance
+
+        Args:
+            simulation_values: List of simulated metric values
+            actual_value: Actual metric value
+            metric_name: Name of the metric
+
+        Returns:
+            P-value (probability of achieving actual value by chance)
         """
-        if market_returns.std() == 0:
-            return 0
-        return np.cov(strategy_returns, market_returns)[0, 1] / market_returns.var()
-    
-    def statistical_significance_test(self, strategy_returns, buy_hold_returns):
-        """
-        Test statistical significance of excess returns
-        """
-        excess_returns = strategy_returns - buy_hold_returns
+        if not simulation_values:
+            return 1.0
         
-        # T-test for mean difference
-        t_stat, p_value = stats.ttest_1samp(excess_returns, 0)
+        # Count how many simulations achieved better or equal performance
+        if metric_name in ["sharpe", "sortino", "excess_sharpe"]:
+            # Higher is better for these metrics
+            better_count = sum(1 for x in simulation_values if x >= actual_value)
+        else:
+            # Lower is better for max drawdown
+            better_count = sum(1 for x in simulation_values if x <= actual_value)
         
-        # Bootstrap confidence intervals
-        bootstrap_samples = self.bootstrap_returns(pd.Series(excess_returns))
-        bootstrap_means = [sample.mean() for sample in bootstrap_samples]
-        
-        ci_95 = np.percentile(bootstrap_means, [2.5, 97.5])
-        ci_99 = np.percentile(bootstrap_means, [0.5, 99.5])
-        
-        return {
-            't_statistic': t_stat,
-            'p_value': p_value,
-            'significant_95': p_value < 0.05,
-            'significant_99': p_value < 0.01,
-            'ci_95_lower': ci_95[0],
-            'ci_95_upper': ci_95[1],
-            'ci_99_lower': ci_99[0],
-            'ci_99_upper': ci_99[1],
-            'mean_excess_return': excess_returns.mean(),
-            'std_excess_return': excess_returns.std()
-        }
-    
-    def rolling_metrics_analysis(self, returns, probabilities, window=252):
+        p_value = better_count / len(simulation_values)
+        return p_value
+
+    def _calculate_confidence_interval(
+        self, values: List[float], confidence_level: float = 0.95
+    ) -> Tuple[float, float]:
         """
-        Calculate rolling metrics for regime analysis
+        Calculate confidence interval
+
+        Args:
+            values: List of values
+            confidence_level: Confidence level (default 0.95)
+
+        Returns:
+            Tuple of (lower_bound, upper_bound)
         """
-        logger.info("Calculating rolling metrics...")
+        if not values:
+            return (0.0, 0.0)
         
-        rolling_metrics = []
+        alpha = 1 - confidence_level
+        lower_percentile = (alpha / 2) * 100
+        upper_percentile = (1 - alpha / 2) * 100
+        
+        lower_bound = np.percentile(values, lower_percentile)
+        upper_bound = np.percentile(values, upper_percentile)
+        
+        return (lower_bound, upper_bound)
+
+    def calculate_rolling_metrics(
+        self, returns: pd.Series, probabilities: pd.Series, window: int = 252
+    ) -> pd.DataFrame:
+        """
+        Calculate rolling performance metrics
+
+        Args:
+            returns: Strategy returns
+            probabilities: Model probabilities
+            window: Rolling window size
+
+        Returns:
+            DataFrame with rolling metrics
+        """
+        logger.info(f"Calculating rolling metrics with {window}-day window...")
+
+        rolling_data = []
         
         for i in range(window, len(returns)):
             window_returns = returns.iloc[i-window:i]
-            window_probs = probabilities.iloc[i-window:i]
+            window_probabilities = probabilities.iloc[i-window:i]
             
-            # Strategy returns
-            positions = (window_probs > 0.52).astype(int)
-            strategy_returns = positions * window_returns
+            # Calculate metrics for this window
+            sharpe = self._calculate_sharpe_ratio(window_returns)
+            sortino = self._calculate_sortino_ratio(window_returns)
+            max_dd = self._calculate_max_drawdown(window_returns)
             
-            # Calculate metrics
-            total_return = (1 + strategy_returns).prod() - 1
-            buy_hold_return = (1 + window_returns).prod() - 1
-            sharpe_ratio = self.calculate_sharpe_ratio(strategy_returns)
-            max_drawdown = self.calculate_max_drawdown(strategy_returns)
-            volatility = strategy_returns.std() * np.sqrt(252)
+            # Calculate signal accuracy
+            signals = (window_probabilities > 0.5).astype(int)
+            accuracy = signals.mean() if len(signals) > 0 else 0.0
             
-            rolling_metrics.append({
-                'date': returns.index[i-1],
-                'total_return': total_return,
-                'buy_hold_return': buy_hold_return,
-                'excess_return': total_return - buy_hold_return,
-                'sharpe_ratio': sharpe_ratio,
-                'max_drawdown': max_drawdown,
-                'volatility': volatility,
-                'win_rate': (strategy_returns > 0).mean()
+            rolling_data.append({
+                'date': returns.index[i],
+                'sharpe_ratio': sharpe,
+                'sortino_ratio': sortino,
+                'max_drawdown': max_dd,
+                'signal_accuracy': accuracy,
+                'window_return': window_returns.sum(),
             })
-        
-        return pd.DataFrame(rolling_metrics)
-    
-    def regime_analysis(self, returns, probabilities, n_regimes=3):
+
+        return pd.DataFrame(rolling_data).set_index('date')
+
+    def regime_analysis(
+        self, returns: pd.Series, probabilities: pd.Series, regime_window: int = 60
+    ) -> Tuple[pd.DataFrame, Dict]:
         """
-        Perform regime analysis using clustering
+        Perform regime analysis to identify different market conditions
+
+        Args:
+            returns: Strategy returns
+            probabilities: Model probabilities
+            regime_window: Window for regime detection
+
+        Returns:
+            Tuple of (regime_data, regime_stats)
         """
-        logger.info("Performing regime analysis...")
+        logger.info(f"Performing regime analysis with {regime_window}-day window...")
+
+        # Calculate rolling volatility
+        rolling_vol = returns.rolling(window=regime_window).std() * np.sqrt(252)
         
-        # Calculate rolling metrics
-        rolling_df = self.rolling_metrics_analysis(returns, probabilities)
-        
-        # Features for regime detection
-        features = ['sharpe_ratio', 'volatility', 'max_drawdown', 'win_rate']
-        X = rolling_df[features].values
-        
-        # Standardize features
-        from sklearn.preprocessing import StandardScaler
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X)
-        
-        # K-means clustering for regime detection
-        from sklearn.cluster import KMeans
-        kmeans = KMeans(n_clusters=n_regimes, random_state=self.random_state)
-        regimes = kmeans.fit_predict(X_scaled)
-        
-        # Add regime information
-        rolling_df['regime'] = regimes
-        
-        # Calculate regime statistics
-        regime_stats = []
-        for regime in range(n_regimes):
-            regime_data = rolling_df[rolling_df['regime'] == regime]
+        # Define regimes based on volatility
+        volatility_median = rolling_vol.median()
+        regimes = pd.cut(rolling_vol, 
+                        bins=[0, volatility_median * 0.8, volatility_median * 1.2, float('inf')],
+                        labels=['Low Volatility', 'Normal Volatility', 'High Volatility'])
+
+        # Calculate performance by regime
+        regime_data = pd.DataFrame({
+            'returns': returns,
+            'probabilities': probabilities,
+            'volatility': rolling_vol,
+            'regime': regimes
+        })
+
+        regime_stats = {}
+        for regime in regime_data['regime'].unique():
+            if pd.isna(regime):
+                continue
+                
+            regime_returns = regime_data[regime_data['regime'] == regime]['returns']
+            regime_probs = regime_data[regime_data['regime'] == regime]['probabilities']
             
-            stats = {
-                'regime': regime,
-                'count': len(regime_data),
-                'avg_sharpe': regime_data['sharpe_ratio'].mean(),
-                'avg_volatility': regime_data['volatility'].mean(),
-                'avg_return': regime_data['total_return'].mean(),
-                'avg_excess_return': regime_data['excess_return'].mean(),
-                'avg_win_rate': regime_data['win_rate'].mean(),
-                'start_date': regime_data['date'].min(),
-                'end_date': regime_data['date'].max()
+            if len(regime_returns) > 0:
+                regime_stats[regime] = {
+                    'count': len(regime_returns),
+                    'sharpe_ratio': self._calculate_sharpe_ratio(regime_returns),
+                    'sortino_ratio': self._calculate_sortino_ratio(regime_returns),
+                    'max_drawdown': self._calculate_max_drawdown(regime_returns),
+                    'avg_probability': regime_probs.mean(),
+                    'signal_accuracy': (regime_probs > 0.5).mean(),
+                    'total_return': (1 + regime_returns).prod() - 1,
+                }
+
+        return regime_data, regime_stats
+
+    def export_simulation_results(self, filepath: str = None) -> str:
+        """
+        Export simulation results to CSV
+
+        Args:
+            filepath: Output file path
+
+        Returns:
+            Path to exported file
+        """
+        if not self.simulation_results:
+            logger.warning("No simulation results to export")
+            return ""
+
+        filepath = filepath or "exports/monte_carlo_results.csv"
+        
+        # Flatten results for CSV export
+        export_data = []
+        for i, result in enumerate(self.simulation_results):
+            row = {
+                'simulation_id': i,
+                'actual_sharpe': result['actual_metrics']['sharpe_ratio'],
+                'actual_sortino': result['actual_metrics']['sortino_ratio'],
+                'actual_max_dd': result['actual_metrics']['max_drawdown'],
+                'sharpe_p_value': result['statistical_significance']['sharpe_p_value'],
+                'sortino_p_value': result['statistical_significance']['sortino_p_value'],
+                'max_dd_p_value': result['statistical_significance']['max_dd_p_value'],
+                'simulation_count': result['simulation_count'],
             }
-            regime_stats.append(stats)
-        
-        return rolling_df, pd.DataFrame(regime_stats)
-    
-    def export_simulation_results(self):
+            
+            # Add confidence intervals
+            sharpe_ci = result['confidence_intervals']['sharpe_ci']
+            row['sharpe_ci_lower'] = sharpe_ci[0]
+            row['sharpe_ci_upper'] = sharpe_ci[1]
+            
+            export_data.append(row)
+
+        df = pd.DataFrame(export_data)
+        df.to_csv(filepath, index=False)
+        logger.info(f"Simulation results exported to {filepath}")
+        return filepath
+
+    def print_statistical_summary(self):
         """
-        Export Monte Carlo simulation results
-        """
-        if not self.simulation_results:
-            logger.warning("No simulation results available for export")
-            return None
-        
-        # Export simulation results
-        sim_df = pd.DataFrame(self.simulation_results)
-        export_path = 'exports/monte_carlo_results.csv'
-        sim_df.to_csv(export_path, index=False)
-        logger.info(f"Monte Carlo results exported to: {export_path}")
-        
-        # Calculate summary statistics
-        summary_stats = {
-            'n_simulations': len(sim_df),
-            'mean_total_return': sim_df['total_return'].mean(),
-            'std_total_return': sim_df['total_return'].std(),
-            'mean_excess_return': sim_df['excess_return'].mean(),
-            'std_excess_return': sim_df['excess_return'].std(),
-            'mean_sharpe': sim_df['sharpe_ratio'].mean(),
-            'std_sharpe': sim_df['sharpe_ratio'].std(),
-            'mean_max_drawdown': sim_df['max_drawdown'].mean(),
-            'std_max_drawdown': sim_df['max_drawdown'].std(),
-            'mean_win_rate': sim_df['win_rate'].mean(),
-            'std_win_rate': sim_df['win_rate'].std(),
-            'positive_excess_return_pct': (sim_df['excess_return'] > 0).mean(),
-            'positive_sharpe_pct': (sim_df['sharpe_ratio'] > 0).mean(),
-            'ci_95_lower_return': np.percentile(sim_df['total_return'], 2.5),
-            'ci_95_upper_return': np.percentile(sim_df['total_return'], 97.5),
-            'ci_99_lower_return': np.percentile(sim_df['total_return'], 0.5),
-            'ci_99_upper_return': np.percentile(sim_df['total_return'], 99.5),
-        }
-        
-        # Export summary statistics
-        summary_df = pd.DataFrame([summary_stats])
-        summary_path = 'exports/simulation_summary.csv'
-        summary_df.to_csv(summary_path, index=False)
-        logger.info(f"Simulation summary exported to: {summary_path}")
-        
-        return export_path, summary_path
-    
-    def plot_simulation_results(self, save_path=None):
-        """
-        Plot Monte Carlo simulation results
+        Print statistical significance summary
         """
         if not self.simulation_results:
-            logger.warning("No simulation results available for plotting")
-            return None
-        
-        try:
-            import plotly.graph_objects as go
-            import plotly.express as px
-            from plotly.subplots import make_subplots
+            logger.warning("No simulation results available")
+            return
+
+        logger.info("=" * 60)
+        logger.info("MONTE CARLO SIMULATION - STATISTICAL SIGNIFICANCE")
+        logger.info("=" * 60)
+
+        for i, result in enumerate(self.simulation_results):
+            logger.info(f"\nSimulation {i+1}:")
+            logger.info(f"  Actual Sharpe Ratio: {result['actual_metrics']['sharpe_ratio']:.3f}")
+            logger.info(f"  Sharpe P-Value: {result['statistical_significance']['sharpe_p_value']:.4f}")
+            logger.info(f"  Sortino P-Value: {result['statistical_significance']['sortino_p_value']:.4f}")
+            logger.info(f"  Max DD P-Value: {result['statistical_significance']['max_dd_p_value']:.4f}")
             
-            sim_df = pd.DataFrame(self.simulation_results)
-            
-            # Create subplots
-            fig = make_subplots(
-                rows=3, cols=2,
-                subplot_titles=('Return Distribution', 'Sharpe Ratio Distribution',
-                              'Excess Return Distribution', 'Max Drawdown Distribution',
-                              'Win Rate Distribution', 'Cumulative Returns'),
-                specs=[[{"type": "histogram"}, {"type": "histogram"}],
-                       [{"type": "histogram"}, {"type": "histogram"}],
-                       [{"type": "histogram"}, {"type": "scatter"}]]
-            )
-            
-            # Return distribution
-            fig.add_trace(
-                go.Histogram(
-                    x=sim_df['total_return'],
-                    name='Total Return',
-                    nbinsx=50
-                ),
-                row=1, col=1
-            )
-            
-            # Sharpe ratio distribution
-            fig.add_trace(
-                go.Histogram(
-                    x=sim_df['sharpe_ratio'],
-                    name='Sharpe Ratio',
-                    nbinsx=50
-                ),
-                row=1, col=2
-            )
-            
-            # Excess return distribution
-            fig.add_trace(
-                go.Histogram(
-                    x=sim_df['excess_return'],
-                    name='Excess Return',
-                    nbinsx=50
-                ),
-                row=2, col=1
-            )
-            
-            # Max drawdown distribution
-            fig.add_trace(
-                go.Histogram(
-                    x=sim_df['max_drawdown'],
-                    name='Max Drawdown',
-                    nbinsx=50
-                ),
-                row=2, col=2
-            )
-            
-            # Win rate distribution
-            fig.add_trace(
-                go.Histogram(
-                    x=sim_df['win_rate'],
-                    name='Win Rate',
-                    nbinsx=50
-                ),
-                row=3, col=1
-            )
-            
-            # Cumulative returns (sorted)
-            sorted_returns = sim_df['total_return'].sort_values()
-            cumulative_prob = np.arange(1, len(sorted_returns) + 1) / len(sorted_returns)
-            
-            fig.add_trace(
-                go.Scatter(
-                    x=sorted_returns,
-                    y=cumulative_prob,
-                    mode='lines',
-                    name='Cumulative Probability'
-                ),
-                row=3, col=2
-            )
-            
-            fig.update_layout(
-                title='Monte Carlo Simulation Results',
-                height=1000,
-                showlegend=False
-            )
-            
-            if save_path:
-                fig.write_html(save_path)
-                logger.info(f"Simulation plots saved to: {save_path}")
-            
-            return fig
-            
-        except ImportError:
-            logger.warning("Plotly not available. Using matplotlib instead.")
-            
-            # Fallback to matplotlib
-            sim_df = pd.DataFrame(self.simulation_results)
-            
-            fig, axes = plt.subplots(3, 2, figsize=(15, 12))
-            
-            # Return distribution
-            axes[0, 0].hist(sim_df['total_return'], bins=50, alpha=0.7)
-            axes[0, 0].set_title('Return Distribution')
-            axes[0, 0].set_xlabel('Total Return')
-            
-            # Sharpe ratio distribution
-            axes[0, 1].hist(sim_df['sharpe_ratio'], bins=50, alpha=0.7)
-            axes[0, 1].set_title('Sharpe Ratio Distribution')
-            axes[0, 1].set_xlabel('Sharpe Ratio')
-            
-            # Excess return distribution
-            axes[1, 0].hist(sim_df['excess_return'], bins=50, alpha=0.7)
-            axes[1, 0].set_title('Excess Return Distribution')
-            axes[1, 0].set_xlabel('Excess Return')
-            
-            # Max drawdown distribution
-            axes[1, 1].hist(sim_df['max_drawdown'], bins=50, alpha=0.7)
-            axes[1, 1].set_title('Max Drawdown Distribution')
-            axes[1, 1].set_xlabel('Max Drawdown')
-            
-            # Win rate distribution
-            axes[2, 0].hist(sim_df['win_rate'], bins=50, alpha=0.7)
-            axes[2, 0].set_title('Win Rate Distribution')
-            axes[2, 0].set_xlabel('Win Rate')
-            
-            # Cumulative returns
-            sorted_returns = sim_df['total_return'].sort_values()
-            cumulative_prob = np.arange(1, len(sorted_returns) + 1) / len(sorted_returns)
-            axes[2, 1].plot(sorted_returns, cumulative_prob)
-            axes[2, 1].set_title('Cumulative Return Distribution')
-            axes[2, 1].set_xlabel('Total Return')
-            axes[2, 1].set_ylabel('Cumulative Probability')
-            
-            plt.tight_layout()
-            
-            if save_path:
-                plt.savefig(save_path.replace('.html', '.png'), dpi=300, bbox_inches='tight')
-                logger.info(f"Simulation plots saved to: {save_path.replace('.html', '.png')}")
-            
-            return fig
+            # Interpret significance
+            sharpe_significant = result['statistical_significance']['sharpe_p_value'] < 0.05
+            logger.info(f"  Strategy Statistically Significant: {'YES' if sharpe_significant else 'NO'}")
+
+
+def main():
+    """
+    Main function for testing Monte Carlo simulation
+    """
+    # Create sample data
+    np.random.seed(42)
+    dates = pd.date_range('2020-01-01', '2024-01-01', freq='D')
+    returns = pd.Series(np.random.normal(0.001, 0.02, len(dates)), index=dates)
+    probabilities = pd.Series(np.random.uniform(0.3, 0.7, len(dates)), index=dates)
     
-    def calculate_rolling_metrics(self, returns, probabilities, window=252):
-        """
-        Calculate rolling metrics for export
-        """
-        logger.info("Calculating rolling metrics...")
-        
-        rolling_metrics = []
-        
-        for i in range(window, len(returns)):
-            window_returns = returns.iloc[i-window:i]
-            window_probs = probabilities.iloc[i-window:i]
-            
-            # Strategy returns
-            positions = (window_probs > 0.52).astype(int)
-            strategy_returns = positions * window_returns
-            
-            # Calculate metrics
-            total_return = (1 + strategy_returns).prod() - 1
-            buy_hold_return = (1 + window_returns).prod() - 1
-            sharpe_ratio = self.calculate_sharpe_ratio(strategy_returns)
-            max_drawdown = self.calculate_max_drawdown(strategy_returns)
-            volatility = strategy_returns.std() * np.sqrt(252)
-            
-            rolling_metrics.append({
-                'date': returns.index[i-1],
-                'total_return': total_return,
-                'buy_hold_return': buy_hold_return,
-                'excess_return': total_return - buy_hold_return,
-                'sharpe_ratio': sharpe_ratio,
-                'max_drawdown': max_drawdown,
-                'volatility': volatility,
-                'win_rate': (strategy_returns > 0).mean()
-            })
-        
-        rolling_df = pd.DataFrame(rolling_metrics)
-        
-        # Export rolling metrics
-        export_path = 'exports/rolling_metrics.csv'
-        rolling_df.to_csv(export_path, index=False)
-        logger.info(f"Rolling metrics exported to: {export_path}")
-        
-        return rolling_df 
+    # Initialize simulator
+    simulator = MonteCarloSimulator(n_simulations=100)
+    
+    # Run simulation
+    results = simulator.simulate_strategy_performance(returns, probabilities)
+    
+    # Print results
+    simulator.print_statistical_summary()
+    
+    # Export results
+    simulator.export_simulation_results()
+
+
+if __name__ == "__main__":
+    main() 

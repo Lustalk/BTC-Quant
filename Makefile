@@ -1,19 +1,29 @@
-# BTC Quantitative Analysis - Makefile
-# Quick commands for both environments
+# BTC Trading Strategy - Enterprise-Grade Makefile
+# Professional automation for development and deployment
 
-.PHONY: help setup-venv run-analysis docker-build docker-run test clean
+.PHONY: help setup-venv run-analysis docker-build docker-run test clean format lint type-check install-dev
 
 help:
-	@echo "BTC Quantitative Analysis - Available Commands:"
+	@echo "BTC Trading Strategy - Enterprise-Grade Commands:"
+	@echo ""
+	@echo "🚀 Quick Start:"
+	@echo "  docker-compose up --build    # Run full analysis"
 	@echo ""
 	@echo "Environment Setup:"
 	@echo "  setup-venv     - Create and setup virtual environment"
+	@echo "  install-dev    - Install development dependencies"
 	@echo "  activate-venv   - Activate virtual environment (manual)"
 	@echo ""
 	@echo "Development (venv):"
 	@echo "  run-analysis    - Run enhanced analysis"
 	@echo "  run-test        - Run quick test analysis"
 	@echo "  jupyter         - Start Jupyter Lab"
+	@echo ""
+	@echo "Code Quality:"
+	@echo "  format          - Format code with black"
+	@echo "  lint            - Lint code with flake8"
+	@echo "  type-check      - Type check with mypy"
+	@echo "  pre-commit      - Run pre-commit hooks"
 	@echo ""
 	@echo "Docker:"
 	@echo "  docker-build    - Build Docker image"
@@ -22,6 +32,7 @@ help:
 	@echo ""
 	@echo "Testing:"
 	@echo "  test            - Run all tests"
+	@echo "  test-cov        - Run tests with coverage"
 	@echo "  test-features   - Test enhanced features"
 	@echo ""
 	@echo "Utilities:"
@@ -35,7 +46,14 @@ setup-venv:
 	@echo "Virtual environment created. Activate with:"
 	@echo "  source btc-quant-env/bin/activate  # Linux/Mac"
 	@echo "  btc-quant-env\\Scripts\\activate     # Windows"
-	@echo "Then run: pip install -r requirements.txt"
+	@echo "Then run: make install-dev"
+
+install-dev:
+	@echo "Installing development dependencies..."
+	pip install -r requirements.txt
+	pip install pre-commit
+	pre-commit install
+	@echo "Development environment ready!"
 
 activate-venv:
 	@echo "Please activate the virtual environment manually:"
@@ -72,10 +90,31 @@ docker-full:
 	@echo "Running full Docker stack..."
 	docker-compose up
 
+# Code Quality
+format:
+	@echo "Formatting code with black..."
+	black src/ tests/ main.py config.py
+
+lint:
+	@echo "Linting code with flake8..."
+	flake8 src/ tests/ main.py config.py
+
+type-check:
+	@echo "Type checking with mypy..."
+	mypy src/ main.py config.py --ignore-missing-imports
+
+pre-commit:
+	@echo "Running pre-commit hooks..."
+	pre-commit run --all-files
+
 # Testing
 test:
 	@echo "Running all tests..."
 	pytest tests/ -v
+
+test-cov:
+	@echo "Running tests with coverage..."
+	pytest tests/ --cov=src --cov-report=html --cov-report=term-missing
 
 test-features:
 	@echo "Testing enhanced features..."

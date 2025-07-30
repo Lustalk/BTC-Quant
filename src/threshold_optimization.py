@@ -1,179 +1,255 @@
 """
-Dynamic Threshold Optimization Module
-Optimizes probability thresholds for trading signals based on recent performance
+Threshold Optimization Module
+Optimizes probability thresholds for trading decisions
 """
 
 import pandas as pd
 import numpy as np
-from sklearn.metrics import precision_score, recall_score, f1_score
 import logging
-from typing import Tuple, Optional
-from config import STRATEGY_CONFIG
+from typing import Dict, List, Optional, Tuple
+from sklearn.metrics import roc_curve, precision_recall_curve
+import warnings
+
+warnings.filterwarnings("ignore")
+
+from config import DATA_CONFIG
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 class ThresholdOptimizer:
     """
-    Dynamic threshold optimization for trading signals
+    Optimizes probability thresholds for trading decisions
     """
-    
-    def __init__(self, optimization_window: int = 252):
+
+    def __init__(self):
+        """Initialize threshold optimizer"""
+        self.optimal_thresholds = {}
+        self.threshold_analysis = {}
+
+    def calculate_optimal_threshold_for_returns(
+        self,
+        returns: pd.Series,
+        predictions: pd.Series,
+        method: str = "sharpe_max",
+        min_threshold: float = 0.1,
+        max_threshold: float = 0.9,
+        step: float = 0.01,
+    ) -> float:
         """
-        Initialize threshold optimizer
-        
-        Args:
-            optimization_window: Number of days to use for threshold optimization
-        """
-        self.optimization_window = optimization_window
-        self.current_threshold = 0.52  # Default threshold
-        
-    def optimize_threshold(self, 
-                          y_true: pd.Series, 
-                          y_proba: pd.Series,
-                          method: str = 'f1_max') -> float:
-        """
-        Optimize probability threshold based on recent performance
-        
-        Args:
-            y_true: True labels (1 for positive, 0 for negative)
-            y_proba: Predicted probabilities
-            method: Optimization method ('f1_max', 'precision_max', 'recall_max')
-            
-        Returns:
-            Optimized threshold value
-        """
-        logger.info(f"Optimizing threshold using {method} method...")
-        
-        # Use only recent data for optimization
-        if len(y_true) > self.optimization_window:
-            y_true = y_true.iloc[-self.optimization_window:]
-            y_proba = y_proba.iloc[-self.optimization_window:]
-        
-        # Test different thresholds
-        thresholds = np.arange(0.3, 0.8, 0.01)
-        best_score = 0
-        best_threshold = 0.52
-        
-        for threshold in thresholds:
-            y_pred = (y_proba >= threshold).astype(int)
-            
-            if method == 'f1_max':
-                score = f1_score(y_true, y_pred, zero_division=0)
-            elif method == 'precision_max':
-                score = precision_score(y_true, y_pred, zero_division=0)
-            elif method == 'recall_max':
-                score = recall_score(y_true, y_pred, zero_division=0)
-            else:
-                raise ValueError(f"Unknown optimization method: {method}")
-            
-            if score > best_score:
-                best_score = score
-                best_threshold = threshold
-        
-        self.current_threshold = best_threshold
-        logger.info(f"Optimized threshold: {best_threshold:.3f} (score: {best_score:.3f})")
-        
-        return best_threshold
-    
-    def get_threshold(self) -> float:
-        """Get current threshold value"""
-        return self.current_threshold
-    
-    def update_threshold(self, new_threshold: float):
-        """Update current threshold value"""
-        self.current_threshold = new_threshold
-        logger.info(f"Updated threshold to: {new_threshold:.3f}")
-    
-    def calculate_optimal_threshold_for_returns(self,
-                                              returns: pd.Series,
-                                              predictions: pd.Series,
-                                              method: str = 'sharpe_max') -> float:
-        """
-        Optimize threshold based on financial performance metrics
+        Calculate optimal threshold based on financial performance
         
         Args:
             returns: Actual returns
-            predictions: Predicted probabilities
-            method: Optimization method ('sharpe_max', 'return_max', 'sortino_max')
+            predictions: Model probability predictions
+            method: Optimization method ('sharpe_max', 'sortino_max', 'return_max')
+            min_threshold: Minimum threshold to test
+            max_threshold: Maximum threshold to test
+            step: Step size for threshold testing
             
         Returns:
-            Optimized threshold value
+            Optimal threshold value
         """
-        logger.info(f"Optimizing threshold for financial performance using {method}...")
+        logger.info(f"Calculating optimal threshold using {method} method...")
         
-        # Use only recent data for optimization
-        if len(returns) > self.optimization_window:
-            returns = returns.iloc[-self.optimization_window:]
-            predictions = predictions.iloc[-self.optimization_window:]
-        
-        thresholds = np.arange(0.3, 0.8, 0.01)
-        best_score = float('-inf')
-        best_threshold = 0.52
+        thresholds = np.arange(min_threshold, max_threshold + step, step)
+        results = []
         
         for threshold in thresholds:
-            # Generate trading signals
-            signals = (predictions >= threshold).astype(int)
+            # Create signals based on threshold
+            signals = (predictions > threshold).astype(int)
             
             # Calculate strategy returns
             strategy_returns = signals * returns
             
-            if method == 'sharpe_max':
-                if strategy_returns.std() > 0:
-                    score = strategy_returns.mean() / strategy_returns.std()
-                else:
-                    score = float('-inf')
-            elif method == 'return_max':
-                score = strategy_returns.sum()
-            elif method == 'sortino_max':
-                negative_returns = strategy_returns[strategy_returns < 0]
-                if len(negative_returns) > 0 and negative_returns.std() > 0:
-                    score = strategy_returns.mean() / negative_returns.std()
-                else:
-                    score = float('-inf')
-            else:
-                raise ValueError(f"Unknown optimization method: {method}")
+            # Calculate metrics
+            metrics = self._calculate_threshold_metrics(strategy_returns, threshold)
+            results.append(metrics)
+        
+        # Find optimal threshold based on method
+        results_df = pd.DataFrame(results)
+        
+        if method == "sharpe_max":
+            optimal_idx = results_df["sharpe_ratio"].idxmax()
+        elif method == "sortino_max":
+            optimal_idx = results_df["sortino_ratio"].idxmax()
+        elif method == "return_max":
+            optimal_idx = results_df["total_return"].idxmax()
+        else:
+            optimal_idx = results_df["sharpe_ratio"].idxmax()
+        
+        optimal_threshold = results_df.loc[optimal_idx, "threshold"]
+        
+        # Store results
+        self.threshold_analysis = {
+            "method": method,
+            "optimal_threshold": optimal_threshold,
+            "all_results": results_df,
+            "optimal_metrics": results_df.loc[optimal_idx].to_dict()
+        }
+        
+        logger.info(f"Optimal threshold: {optimal_threshold:.3f}")
+        logger.info(f"Optimal Sharpe: {results_df.loc[optimal_idx, 'sharpe_ratio']:.3f}")
+        
+        return optimal_threshold
+    
+    def _calculate_threshold_metrics(
+        self, strategy_returns: pd.Series, threshold: float
+    ) -> Dict:
+        """Calculate performance metrics for a given threshold"""
+        
+        # Remove NaN values
+        strategy_returns = strategy_returns.dropna()
+        
+        if len(strategy_returns) == 0:
+            return {
+                "threshold": threshold,
+                "total_return": 0,
+                "sharpe_ratio": 0,
+                "sortino_ratio": 0,
+                "max_drawdown": 0,
+                "win_rate": 0,
+                "signal_count": 0
+            }
+        
+        # Basic metrics
+        total_return = (1 + strategy_returns).prod() - 1
+        annualized_return = (1 + total_return) ** (252 / len(strategy_returns)) - 1
+        volatility = strategy_returns.std() * np.sqrt(252)
+        
+        # Risk-adjusted metrics
+        sharpe_ratio = annualized_return / volatility if volatility > 0 else 0
+        
+        # Sortino ratio (downside deviation)
+        downside_returns = strategy_returns[strategy_returns < 0]
+        downside_deviation = downside_returns.std() * np.sqrt(252) if len(downside_returns) > 0 else 0
+        sortino_ratio = annualized_return / downside_deviation if downside_deviation > 0 else 0
+        
+        # Maximum drawdown
+        cumulative_returns = (1 + strategy_returns).cumprod()
+        running_max = cumulative_returns.expanding().max()
+        drawdown = (cumulative_returns - running_max) / running_max
+        max_drawdown = drawdown.min()
+        
+        # Win rate
+        win_rate = (strategy_returns > 0).mean()
+        
+        # Signal count
+        signal_count = (strategy_returns != 0).sum()
+        
+        return {
+            "threshold": threshold,
+            "total_return": total_return,
+            "annualized_return": annualized_return,
+            "volatility": volatility,
+            "sharpe_ratio": sharpe_ratio,
+            "sortino_ratio": sortino_ratio,
+            "max_drawdown": max_drawdown,
+            "win_rate": win_rate,
+            "signal_count": signal_count
+        }
+    
+    def optimize_threshold_by_period(
+        self,
+        data: pd.DataFrame,
+        predictions: pd.Series,
+        period_length: int = 252,
+    ) -> Dict:
+        """
+        Optimize thresholds for different time periods
+        
+        Args:
+            data: DataFrame with returns and other data
+            predictions: Model predictions
+            period_length: Length of each period in days
             
-            if score > best_score:
-                best_score = score
-                best_threshold = threshold
+        Returns:
+            Dictionary with period-specific optimal thresholds
+        """
+        logger.info("Optimizing thresholds by period...")
         
-        self.current_threshold = best_threshold
-        logger.info(f"Optimized threshold: {best_threshold:.3f} (score: {best_score:.3f})")
+        results = {}
+        returns = data["returns"]
         
-        return best_threshold
+        # Split data into periods
+        periods = len(data) // period_length
+        
+        for i in range(periods):
+            start_idx = i * period_length
+            end_idx = (i + 1) * period_length
+            
+            period_returns = returns.iloc[start_idx:end_idx]
+            period_predictions = predictions.iloc[start_idx:end_idx]
+            
+            # Calculate optimal threshold for this period
+            optimal_threshold = self.calculate_optimal_threshold_for_returns(
+                period_returns, period_predictions
+            )
+            
+            results[f"period_{i+1}"] = {
+                "start_date": data.index[start_idx],
+                "end_date": data.index[end_idx-1],
+                "optimal_threshold": optimal_threshold,
+                "metrics": self.threshold_analysis["optimal_metrics"]
+            }
+        
+        return results
+    
+    def calculate_dynamic_threshold(
+        self,
+        predictions: pd.Series,
+        window: int = 60,
+        method: str = "rolling_percentile",
+    ) -> pd.Series:
+        """
+        Calculate dynamic thresholds that adapt over time
+        
+        Args:
+            predictions: Model predictions
+            window: Rolling window size
+            method: Method for dynamic threshold ('rolling_percentile', 'rolling_mean')
+            
+        Returns:
+            Series with dynamic thresholds
+        """
+        logger.info("Calculating dynamic thresholds...")
+        
+        if method == "rolling_percentile":
+            # Use 75th percentile as threshold
+            dynamic_thresholds = predictions.rolling(window=window).quantile(0.75)
+        elif method == "rolling_mean":
+            # Use mean + 1 standard deviation
+            rolling_mean = predictions.rolling(window=window).mean()
+            rolling_std = predictions.rolling(window=window).std()
+            dynamic_thresholds = rolling_mean + rolling_std
+        else:
+            # Default to rolling percentile
+            dynamic_thresholds = predictions.rolling(window=window).quantile(0.75)
+        
+        # Fill NaN values with median
+        dynamic_thresholds = dynamic_thresholds.fillna(predictions.median())
+        
+        return dynamic_thresholds
+    
+    def export_threshold_analysis(self, filepath: str = None) -> str:
+        """Export threshold analysis results"""
+        
+        if not filepath:
+            filepath = "exports/threshold_analysis.csv"
+        
+        if hasattr(self, 'threshold_analysis') and 'all_results' in self.threshold_analysis:
+            self.threshold_analysis['all_results'].to_csv(filepath, index=False)
+            logger.info(f"Threshold analysis exported to: {filepath}")
+        
+        return filepath
+
 
 def main():
-    """Test threshold optimization"""
-    # Create sample data
-    np.random.seed(42)
-    n_samples = 1000
-    
-    # Generate sample predictions and returns
-    y_true = np.random.binomial(1, 0.6, n_samples)
-    y_proba = np.random.beta(2, 2, n_samples)
-    returns = np.random.normal(0.001, 0.02, n_samples)
-    
-    # Test threshold optimization
-    optimizer = ThresholdOptimizer(optimization_window=252)
-    
-    # Test classification-based optimization
-    threshold_clf = optimizer.optimize_threshold(
-        pd.Series(y_true), 
-        pd.Series(y_proba), 
-        method='f1_max'
-    )
-    
-    # Test financial performance-based optimization
-    threshold_fin = optimizer.calculate_optimal_threshold_for_returns(
-        pd.Series(returns),
-        pd.Series(y_proba),
-        method='sharpe_max'
-    )
-    
-    print(f"Classification-optimized threshold: {threshold_clf:.3f}")
-    print(f"Financial-optimized threshold: {threshold_fin:.3f}")
+    """Main function for standalone execution"""
+    logger.info("Threshold optimization module loaded successfully")
+
 
 if __name__ == "__main__":
     main() 

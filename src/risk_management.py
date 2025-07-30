@@ -1,335 +1,347 @@
 """
-Risk Management and Regime Detection Module
-Implements volatility clustering identification and position sizing based on volatility targeting
+Risk Management Module
+Position sizing and risk controls for trading strategy
 """
 
 import pandas as pd
 import numpy as np
-from typing import Tuple, Dict, Optional
 import logging
-from config import ADVANCED_CONFIG
+from typing import Dict, List, Optional, Tuple
+import warnings
+
+warnings.filterwarnings("ignore")
+
+from config import DATA_CONFIG
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class RegimeDetector:
-    """
-    Detects market regimes based on volatility clustering
-    """
-    
-    def __init__(self, window: int = 60):
-        """
-        Initialize regime detector
-        
-        Args:
-            window: Window size for regime detection
-        """
-        self.window = window
-        self.regimes = None
-        
-    def detect_regimes(self, returns: pd.Series) -> pd.Series:
-        """
-        Detect market regimes based on volatility clustering
-        
-        Args:
-            returns: Asset returns
-            
-        Returns:
-            Series with regime labels (0: low volatility, 1: high volatility)
-        """
-        logger.info("Detecting market regimes...")
-        
-        # Calculate rolling volatility
-        volatility = returns.rolling(window=self.window).std() * np.sqrt(252)
-        
-        # Calculate volatility percentile
-        vol_percentile = volatility.rolling(window=self.window).rank(pct=True)
-        
-        # Define regimes based on volatility percentile
-        # Low volatility regime: bottom 40%
-        # High volatility regime: top 40%
-        # Transition regime: middle 20%
-        
-        regimes = pd.Series(index=returns.index, dtype=int)
-        regimes[vol_percentile <= 0.4] = 0  # Low volatility
-        regimes[vol_percentile >= 0.6] = 1  # High volatility
-        regimes[(vol_percentile > 0.4) & (vol_percentile < 0.6)] = 2  # Transition
-        
-        self.regimes = regimes
-        logger.info(f"Regime detection complete. Regimes: {regimes.value_counts().to_dict()}")
-        
-        return regimes
-    
-    def get_regime_statistics(self, returns: pd.Series) -> Dict:
-        """
-        Calculate statistics for each regime
-        
-        Args:
-            returns: Asset returns
-            
-        Returns:
-            Dictionary with regime statistics
-        """
-        if self.regimes is None:
-            self.detect_regimes(returns)
-        
-        stats = {}
-        for regime in [0, 1, 2]:
-            regime_returns = returns[self.regimes == regime]
-            if len(regime_returns) > 0:
-                stats[f'regime_{regime}'] = {
-                    'count': len(regime_returns),
-                    'mean_return': regime_returns.mean(),
-                    'volatility': regime_returns.std() * np.sqrt(252),
-                    'sharpe_ratio': regime_returns.mean() / (regime_returns.std() + 1e-8),
-                    'max_drawdown': self._calculate_max_drawdown(regime_returns)
-                }
-        
-        return stats
-    
-    def _calculate_max_drawdown(self, returns: pd.Series) -> float:
-        """Calculate maximum drawdown"""
-        cumulative = (1 + returns).cumprod()
-        running_max = cumulative.expanding().max()
-        drawdown = (cumulative - running_max) / running_max
-        return drawdown.min()
-    
-    def get_current_regime(self) -> Optional[int]:
-        """Get the most recent regime"""
-        if self.regimes is not None:
-            return self.regimes.iloc[-1]
-        return None
 
 class RiskManager:
     """
-    Implements risk management features including volatility targeting and position sizing
+    Risk management and position sizing for trading strategy
     """
-    
-    def __init__(self, volatility_target: float = 0.15, max_position_size: float = 1.0):
-        """
-        Initialize risk manager
-        
-        Args:
-            volatility_target: Target annualized volatility (default 15%)
-            max_position_size: Maximum position size (default 100%)
-        """
-        self.volatility_target = volatility_target
-        self.max_position_size = max_position_size
-        self.regime_detector = RegimeDetector()
-        
-    def calculate_position_size(self, 
-                              returns: pd.Series,
-                              predictions: pd.Series,
-                              method: str = 'volatility_targeting') -> pd.Series:
+
+    def __init__(self):
+        """Initialize risk manager"""
+        self.position_sizes = None
+        self.risk_metrics = {}
+        self.risk_limits = {
+            "max_position_size": 1.0,
+            "max_drawdown": 0.20,
+            "volatility_target": 0.15,
+            "max_correlation": 0.7
+        }
+
+    def calculate_position_size(
+        self,
+        returns: pd.Series,
+        predictions: pd.Series,
+        method: str = "volatility_targeting",
+        target_volatility: float = None,
+        max_position: float = None,
+    ) -> pd.Series:
         """
         Calculate position sizes based on risk management rules
         
         Args:
-            returns: Asset returns
+            returns: Historical returns
             predictions: Model predictions
             method: Position sizing method
+            target_volatility: Target annualized volatility
+            max_position: Maximum position size
             
         Returns:
             Series with position sizes
         """
         logger.info(f"Calculating position sizes using {method} method...")
         
-        if method == 'volatility_targeting':
-            return self._volatility_targeted_sizing(returns, predictions)
-        elif method == 'regime_based':
-            return self._regime_based_sizing(returns, predictions)
-        elif method == 'kelly_criterion':
-            return self._kelly_criterion_sizing(returns, predictions)
-        else:
-            raise ValueError(f"Unknown position sizing method: {method}")
-    
-    def _volatility_targeted_sizing(self, 
-                                   returns: pd.Series, 
-                                   predictions: pd.Series) -> pd.Series:
-        """
-        Volatility targeting position sizing
+        target_volatility = target_volatility or self.risk_limits["volatility_target"]
+        max_position = max_position or self.risk_limits["max_position_size"]
         
-        Args:
-            returns: Asset returns
-            predictions: Model predictions
-            
-        Returns:
-            Position sizes
-        """
+        if method == "volatility_targeting":
+            position_sizes = self._volatility_targeting(
+                returns, predictions, target_volatility, max_position
+            )
+        elif method == "kelly_criterion":
+            position_sizes = self._kelly_criterion(returns, predictions, max_position)
+        elif method == "fixed_fraction":
+            position_sizes = self._fixed_fraction(predictions, max_position)
+        elif method == "adaptive":
+            position_sizes = self._adaptive_position_sizing(
+                returns, predictions, target_volatility, max_position
+            )
+        else:
+            position_sizes = self._volatility_targeting(
+                returns, predictions, target_volatility, max_position
+            )
+        
+        self.position_sizes = position_sizes
+        return position_sizes
+    
+    def _volatility_targeting(
+        self,
+        returns: pd.Series,
+        predictions: pd.Series,
+        target_volatility: float,
+        max_position: float,
+    ) -> pd.Series:
+        """Volatility targeting position sizing"""
+        
         # Calculate rolling volatility
-        volatility = returns.rolling(window=60).std() * np.sqrt(252)
+        rolling_vol = returns.rolling(window=60).std() * np.sqrt(252)
         
         # Calculate position size based on volatility targeting
-        # Position size = target_vol / current_vol
-        position_size = self.volatility_target / (volatility + 1e-8)
+        position_sizes = target_volatility / rolling_vol
         
-        # Apply maximum position size constraint
-        position_size = position_size.clip(0, self.max_position_size)
+        # Apply maximum position limit
+        position_sizes = np.minimum(position_sizes, max_position)
         
-        # Only take positions when model predicts positive return
-        position_size = position_size * (predictions >= 0.52).astype(float)
+        # Apply prediction-based scaling
+        position_sizes = position_sizes * predictions
         
-        return position_size
+        # Ensure non-negative positions
+        position_sizes = np.maximum(position_sizes, 0)
+        
+        return position_sizes
     
-    def _regime_based_sizing(self, 
-                            returns: pd.Series, 
-                            predictions: pd.Series) -> pd.Series:
-        """
-        Regime-based position sizing
+    def _kelly_criterion(
+        self,
+        returns: pd.Series,
+        predictions: pd.Series,
+        max_position: float,
+    ) -> pd.Series:
+        """Kelly criterion position sizing"""
         
-        Args:
-            returns: Asset returns
-            predictions: Model predictions
-            
-        Returns:
-            Position sizes
-        """
-        # Detect regimes
-        regimes = self.regime_detector.detect_regimes(returns)
+        # Calculate win rate and average win/loss
+        positive_returns = returns[returns > 0]
+        negative_returns = returns[returns < 0]
         
-        # Calculate base position size
-        position_size = pd.Series(0.0, index=returns.index)
+        win_rate = len(positive_returns) / len(returns) if len(returns) > 0 else 0
+        avg_win = positive_returns.mean() if len(positive_returns) > 0 else 0
+        avg_loss = abs(negative_returns.mean()) if len(negative_returns) > 0 else 1
         
-        # Different position sizes for different regimes
-        # Low volatility regime: full position
-        # High volatility regime: reduced position
-        # Transition regime: moderate position
+        # Kelly fraction
+        kelly_fraction = (win_rate * avg_win - (1 - win_rate) * avg_loss) / avg_win if avg_win > 0 else 0
         
-        position_size[regimes == 0] = self.max_position_size  # Low volatility
-        position_size[regimes == 1] = self.max_position_size * 0.5  # High volatility
-        position_size[regimes == 2] = self.max_position_size * 0.75  # Transition
+        # Apply maximum position limit
+        kelly_fraction = min(kelly_fraction, max_position)
         
-        # Only take positions when model predicts positive return
-        position_size = position_size * (predictions >= 0.52).astype(float)
+        # Scale by predictions
+        position_sizes = kelly_fraction * predictions
         
-        return position_size
+        return position_sizes
     
-    def _kelly_criterion_sizing(self, 
-                               returns: pd.Series, 
-                               predictions: pd.Series) -> pd.Series:
-        """
-        Kelly Criterion position sizing
+    def _fixed_fraction(
+        self,
+        predictions: pd.Series,
+        max_position: float,
+    ) -> pd.Series:
+        """Fixed fraction position sizing"""
         
-        Args:
-            returns: Asset returns
-            predictions: Model predictions
-            
-        Returns:
-            Position sizes
-        """
-        # Calculate Kelly fraction based on win rate and average win/loss
-        # Kelly = (p * b - q) / b
-        # where p = win rate, b = avg_win/avg_loss, q = 1-p
+        # Simple fixed fraction based on predictions
+        position_sizes = max_position * predictions
         
-        # Use rolling windows to calculate Kelly fraction
-        window = 252  # 1 year
-        position_size = pd.Series(0.0, index=returns.index)
-        
-        for i in range(window, len(returns)):
-            # Get recent data
-            recent_returns = returns.iloc[i-window:i]
-            recent_predictions = predictions.iloc[i-window:i]
-            
-            # Calculate win rate and average win/loss for predicted positive returns
-            positive_predictions = recent_predictions >= 0.52
-            if positive_predictions.sum() > 0:
-                predicted_returns = recent_returns[positive_predictions]
-                
-                if len(predicted_returns) > 0:
-                    win_rate = (predicted_returns > 0).mean()
-                    avg_win = predicted_returns[predicted_returns > 0].mean()
-                    avg_loss = abs(predicted_returns[predicted_returns < 0].mean())
-                    
-                    if avg_loss > 0:
-                        b = avg_win / avg_loss
-                        kelly_fraction = (win_rate * b - (1 - win_rate)) / b
-                        kelly_fraction = max(0, min(kelly_fraction, self.max_position_size))
-                        
-                        # Apply to current position if model predicts positive
-                        if predictions.iloc[i] >= 0.52:
-                            position_size.iloc[i] = kelly_fraction
-        
-        return position_size
+        return position_sizes
     
-    def calculate_risk_metrics(self, 
-                              returns: pd.Series, 
-                              strategy_returns: pd.Series) -> Dict:
+    def _adaptive_position_sizing(
+        self,
+        returns: pd.Series,
+        predictions: pd.Series,
+        target_volatility: float,
+        max_position: float,
+    ) -> pd.Series:
+        """Adaptive position sizing based on market conditions"""
+        
+        # Calculate market regime indicators
+        rolling_vol = returns.rolling(window=60).std() * np.sqrt(252)
+        rolling_sharpe = returns.rolling(window=60).mean() / returns.rolling(window=60).std()
+        
+        # Base position size from volatility targeting
+        base_position = target_volatility / rolling_vol
+        
+        # Adjust based on Sharpe ratio
+        sharpe_adjustment = np.clip(rolling_sharpe / 2, 0.5, 2.0)
+        
+        # Final position size
+        position_sizes = base_position * sharpe_adjustment * predictions
+        
+        # Apply limits
+        position_sizes = np.clip(position_sizes, 0, max_position)
+        
+        return position_sizes
+    
+    def calculate_risk_metrics(
+        self,
+        returns: pd.Series,
+        position_sizes: pd.Series,
+    ) -> Dict:
         """
         Calculate comprehensive risk metrics
         
         Args:
-            returns: Asset returns
-            strategy_returns: Strategy returns
+            returns: Strategy returns
+            position_sizes: Position sizes
             
         Returns:
             Dictionary with risk metrics
         """
+        logger.info("Calculating risk metrics...")
+        
+        # Strategy returns
+        strategy_returns = returns * position_sizes
+        
         # Basic risk metrics
-        metrics = {
-            'volatility': strategy_returns.std() * np.sqrt(252),
-            'sharpe_ratio': strategy_returns.mean() / (strategy_returns.std() + 1e-8) * np.sqrt(252),
-            'sortino_ratio': strategy_returns.mean() / (strategy_returns[strategy_returns < 0].std() + 1e-8) * np.sqrt(252),
-            'max_drawdown': self._calculate_max_drawdown(strategy_returns),
-            'var_95': strategy_returns.quantile(0.05),
-            'cvar_95': strategy_returns[strategy_returns <= strategy_returns.quantile(0.05)].mean(),
-            'win_rate': (strategy_returns > 0).mean(),
-            'avg_win': strategy_returns[strategy_returns > 0].mean(),
-            'avg_loss': strategy_returns[strategy_returns < 0].mean(),
+        volatility = strategy_returns.std() * np.sqrt(252)
+        var_95 = np.percentile(strategy_returns, 5)
+        cvar_95 = strategy_returns[strategy_returns <= var_95].mean()
+        
+        # Maximum drawdown
+        cumulative_returns = (1 + strategy_returns).cumprod()
+        running_max = cumulative_returns.expanding().max()
+        drawdown = (cumulative_returns - running_max) / running_max
+        max_drawdown = drawdown.min()
+        
+        # Position sizing metrics
+        avg_position_size = position_sizes.mean()
+        max_position_size = position_sizes.max()
+        position_volatility = position_sizes.std()
+        
+        # Risk-adjusted metrics
+        sharpe_ratio = strategy_returns.mean() / strategy_returns.std() * np.sqrt(252) if strategy_returns.std() > 0 else 0
+        
+        # Downside risk
+        downside_returns = strategy_returns[strategy_returns < 0]
+        downside_deviation = downside_returns.std() * np.sqrt(252) if len(downside_returns) > 0 else 0
+        sortino_ratio = strategy_returns.mean() / downside_deviation * np.sqrt(252) if downside_deviation > 0 else 0
+        
+        risk_metrics = {
+            "volatility": volatility,
+            "var_95": var_95,
+            "cvar_95": cvar_95,
+            "max_drawdown": max_drawdown,
+            "sharpe_ratio": sharpe_ratio,
+            "sortino_ratio": sortino_ratio,
+            "avg_position_size": avg_position_size,
+            "max_position_size": max_position_size,
+            "position_volatility": position_volatility
         }
         
-        # Regime analysis
-        if ADVANCED_CONFIG['regime_detection']['enabled']:
-            regimes = self.regime_detector.detect_regimes(returns)
-            regime_stats = self.regime_detector.get_regime_statistics(strategy_returns)
-            metrics['regime_analysis'] = regime_stats
-        
-        return metrics
+        self.risk_metrics = risk_metrics
+        return risk_metrics
     
-    def _calculate_max_drawdown(self, returns: pd.Series) -> float:
-        """Calculate maximum drawdown"""
-        cumulative = (1 + returns).cumprod()
-        running_max = cumulative.expanding().max()
-        drawdown = (cumulative - running_max) / running_max
-        return drawdown.min()
+    def check_risk_limits(
+        self,
+        returns: pd.Series,
+        position_sizes: pd.Series,
+    ) -> Dict:
+        """
+        Check if strategy violates risk limits
+        
+        Args:
+            returns: Strategy returns
+            position_sizes: Position sizes
+            
+        Returns:
+            Dictionary with risk limit violations
+        """
+        logger.info("Checking risk limits...")
+        
+        # Calculate current metrics
+        risk_metrics = self.calculate_risk_metrics(returns, position_sizes)
+        
+        # Check limits
+        violations = {}
+        
+        # Position size limit
+        if risk_metrics["max_position_size"] > self.risk_limits["max_position_size"]:
+            violations["position_size"] = {
+                "limit": self.risk_limits["max_position_size"],
+                "actual": risk_metrics["max_position_size"]
+            }
+        
+        # Drawdown limit
+        if abs(risk_metrics["max_drawdown"]) > self.risk_limits["max_drawdown"]:
+            violations["drawdown"] = {
+                "limit": self.risk_limits["max_drawdown"],
+                "actual": abs(risk_metrics["max_drawdown"])
+            }
+        
+        # Volatility limit
+        if risk_metrics["volatility"] > self.risk_limits["volatility_target"]:
+            violations["volatility"] = {
+                "limit": self.risk_limits["volatility_target"],
+                "actual": risk_metrics["volatility"]
+            }
+        
+        return violations
+    
+    def apply_risk_controls(
+        self,
+        position_sizes: pd.Series,
+        returns: pd.Series,
+    ) -> pd.Series:
+        """
+        Apply risk controls to position sizes
+        
+        Args:
+            position_sizes: Original position sizes
+            returns: Historical returns
+            
+        Returns:
+            Adjusted position sizes
+        """
+        logger.info("Applying risk controls...")
+        
+        # Check for violations
+        violations = self.check_risk_limits(returns, position_sizes)
+        
+        adjusted_positions = position_sizes.copy()
+        
+        # Apply position size limits
+        if "position_size" in violations:
+            max_allowed = self.risk_limits["max_position_size"]
+            adjusted_positions = np.minimum(adjusted_positions, max_allowed)
+        
+        # Apply volatility targeting if needed
+        if "volatility" in violations:
+            target_vol = self.risk_limits["volatility_target"]
+            current_vol = returns.std() * np.sqrt(252)
+            vol_adjustment = target_vol / current_vol
+            adjusted_positions = adjusted_positions * vol_adjustment
+        
+        # Apply drawdown protection
+        if "drawdown" in violations:
+            # Reduce position sizes during high drawdown periods
+            cumulative_returns = (1 + returns).cumprod()
+            running_max = cumulative_returns.expanding().max()
+            drawdown = (cumulative_returns - running_max) / running_max
+            
+            # Reduce positions when drawdown exceeds 10%
+            drawdown_factor = np.where(drawdown < -0.1, 0.5, 1.0)
+            adjusted_positions = adjusted_positions * drawdown_factor
+        
+        return adjusted_positions
+    
+    def export_risk_analysis(self, filepath: str = None) -> str:
+        """Export risk analysis results"""
+        
+        if not filepath:
+            filepath = "exports/risk_analysis.csv"
+        
+        if hasattr(self, 'risk_metrics'):
+            risk_df = pd.DataFrame([self.risk_metrics])
+            risk_df.to_csv(filepath, index=False)
+            logger.info(f"Risk analysis exported to: {filepath}")
+        
+        return filepath
+
 
 def main():
-    """Test risk management functionality"""
-    # Create sample data
-    np.random.seed(42)
-    n_samples = 1000
-    
-    # Generate sample returns and predictions
-    returns = np.random.normal(0.001, 0.02, n_samples)
-    predictions = np.random.beta(2, 2, n_samples)
-    
-    # Test regime detection
-    regime_detector = RegimeDetector()
-    regimes = regime_detector.detect_regimes(pd.Series(returns))
-    regime_stats = regime_detector.get_regime_statistics(pd.Series(returns))
-    
-    print("Regime Statistics:")
-    for regime, stats in regime_stats.items():
-        print(f"{regime}: {stats}")
-    
-    # Test risk management
-    risk_manager = RiskManager()
-    
-    # Test different position sizing methods
-    vol_targeted = risk_manager.calculate_position_size(
-        pd.Series(returns), 
-        pd.Series(predictions), 
-        method='volatility_targeting'
-    )
-    
-    regime_based = risk_manager.calculate_position_size(
-        pd.Series(returns), 
-        pd.Series(predictions), 
-        method='regime_based'
-    )
-    
-    print(f"\nVolatility targeted position size mean: {vol_targeted.mean():.3f}")
-    print(f"Regime-based position size mean: {regime_based.mean():.3f}")
+    """Main function for standalone execution"""
+    logger.info("Risk management module loaded successfully")
+
 
 if __name__ == "__main__":
     main() 

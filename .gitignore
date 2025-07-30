@@ -34,33 +34,101 @@ venv.bak/
 # Data files
 data/raw/*.csv
 data/processed/*.csv
+data/*.parquet
+data/*.h5
 
 # Model files
 models/*.pkl
 models/*.joblib
+models/*.h5
+models/*.onnx
 
-# Results
+# Results and exports
 results/*.png
 results/*.jpg
 results/*.json
+results/*.csv
+exports/*.csv
+exports/*.html
+exports/visualizations/*.html
 
 # Logs
 logs/*.log
+logs/*.txt
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
 
 # OS
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # Environment variables
 .env
 .env.local
+.env.production
 
 # Temporary files
 *.tmp
-*.temp 
+*.temp
+*.cache
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+btc-quant-env/
+
+# Jupyter
+.ipynb_checkpoints
+*.ipynb
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Documentation
+docs/_build/
+
+# Docker
+.dockerignore
+
+# Pre-commit
+.pre-commit-config.yaml.bak 

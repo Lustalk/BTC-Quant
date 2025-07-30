@@ -10,20 +10,30 @@ services:
       - ./logs:/app/logs
     environment:
       - PYTHONPATH=/app
-    command: python enhanced_main.py
-    
+      - BTC_SYMBOL=${BTC_SYMBOL:-BTC-USD}
+      - BTC_START_DATE=${BTC_START_DATE:-2017-01-01}
+      - BTC_END_DATE=${BTC_END_DATE:-2024-12-31}
+      - XGB_N_ESTIMATORS=${XGB_N_ESTIMATORS:-200}
+      - VAL_INITIAL_TRAIN_YEARS=${VAL_INITIAL_TRAIN_YEARS:-2}
+      - MONTE_CARLO_SIMULATIONS=${MONTE_CARLO_SIMULATIONS:-500}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    env_file:
+      - .env
+    command: python main.py
+    restart: unless-stopped
+
   jupyter:
     build: .
-    command: jupyter lab --ip=0.0.0.0 --port=8888 --allow-root --no-browser --NotebookApp.token='' --NotebookApp.password=''
     ports:
       - "8888:8888"
     volumes:
-      - .:/app
       - ./data:/app/data
       - ./results:/app/results
       - ./exports:/app/exports
       - ./logs:/app/logs
+      - ./notebooks:/app/notebooks
     environment:
       - PYTHONPATH=/app
-    depends_on:
-      - btc-quant 
+      - JUPYTER_ENABLE_LAB=yes
+    command: jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root
+    restart: unless-stopped 

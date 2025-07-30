@@ -1,648 +1,684 @@
 """
-Professional Visualization Module
-Python/Plotly visualizations for all analysis components
+Professional Visualizations Module
+Interactive dashboards and charts for trading strategy analysis
 """
 
-import numpy as np
 import pandas as pd
+import numpy as np
+import logging
+from typing import Dict, List, Optional, Tuple
 import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
 import plotly.figure_factory as ff
-from datetime import datetime
-import logging
-import os
+import warnings
 
+warnings.filterwarnings("ignore")
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 class ProfessionalVisualizer:
     """
-    Professional visualization module with Plotly
+    Professional visualization tools for trading strategy analysis
     """
-    
+
     def __init__(self):
+        """Initialize professional visualizer"""
         self.colors = {
-            'primary': '#1f77b4',
-            'secondary': '#ff7f0e',
-            'success': '#2ca02c',
-            'danger': '#d62728',
-            'warning': '#ff7f0e',
-            'info': '#17a2b8',
-            'light': '#f8f9fa',
-            'dark': '#343a40'
+            'strategy': '#1f77b4',
+            'benchmark': '#ff7f0e',
+            'excess': '#2ca02c',
+            'positive': '#2ca02c',
+            'negative': '#d62728',
+            'neutral': '#7f7f7f'
         }
-        
-    def create_cumulative_returns_plot(self, data, predictions, probabilities, save_path=None):
+
+    def create_cumulative_returns_plot(
+        self,
+        data: pd.DataFrame,
+        predictions: pd.Series,
+        probabilities: pd.Series,
+        save_path: str = None
+    ) -> go.Figure:
         """
-        Create cumulative returns plot
+        Create cumulative returns comparison plot
+
+        Args:
+            data: DataFrame with price data
+            predictions: Model predictions
+            probabilities: Model probabilities
+            save_path: Path to save the plot
+
+        Returns:
+            Plotly figure object
         """
         # Calculate strategy returns
-        positions = (probabilities > 0.52).astype(int)
-        strategy_returns = positions * data['returns']
-        
+        signals = (probabilities > 0.5).astype(int)
+        strategy_returns = signals * data['returns']
+        buy_hold_returns = data['returns']
+
         # Calculate cumulative returns
-        cumulative_strategy = (1 + strategy_returns).cumprod()
-        cumulative_buyhold = (1 + data['returns']).cumprod()
-        
-        # Create plot
-        fig = go.Figure()
-        
-        fig.add_trace(go.Scatter(
-            x=data.index,
-            y=cumulative_strategy,
-            mode='lines',
-            name='Strategy Returns',
-            line=dict(color=self.colors['primary'], width=2)
-        ))
-        
-        fig.add_trace(go.Scatter(
-            x=data.index,
-            y=cumulative_buyhold,
-            mode='lines',
-            name='Buy & Hold',
-            line=dict(color=self.colors['secondary'], width=2)
-        ))
-        
-        fig.update_layout(
-            title='Cumulative Returns Comparison',
-            xaxis_title='Date',
-            yaxis_title='Cumulative Return',
-            hovermode='x unified',
-            template='plotly_white',
-            height=600
-        )
-        
-        if save_path:
-            fig.write_html(save_path)
-            logger.info(f"Cumulative returns plot saved to: {save_path}")
-        
-        return fig
-    
-    def create_drawdown_plot(self, data, predictions, probabilities, save_path=None):
-        """
-        Create drawdown analysis plot
-        """
-        # Calculate strategy returns
-        positions = (probabilities > 0.52).astype(int)
-        strategy_returns = positions * data['returns']
-        
-        # Calculate drawdown
-        cumulative = (1 + strategy_returns).cumprod()
-        running_max = cumulative.expanding().max()
-        drawdown = (cumulative - running_max) / running_max
-        
-        # Create plot
-        fig = go.Figure()
-        
-        fig.add_trace(go.Scatter(
-            x=data.index,
-            y=drawdown * 100,
-            mode='lines',
-            name='Drawdown %',
-            line=dict(color=self.colors['danger'], width=2),
-            fill='tonexty'
-        ))
-        
-        fig.update_layout(
-            title='Strategy Drawdown Analysis',
-            xaxis_title='Date',
-            yaxis_title='Drawdown (%)',
-            hovermode='x unified',
-            template='plotly_white',
-            height=600
-        )
-        
-        if save_path:
-            fig.write_html(save_path)
-            logger.info(f"Drawdown plot saved to: {save_path}")
-        
-        return fig
-    
-    def create_feature_importance_plot(self, feature_importance, save_path=None, top_n=15):
-        """
-        Create feature importance plot
-        """
-        # Get top features
-        top_features = feature_importance.head(top_n)
-        
-        fig = go.Figure()
-        
-        fig.add_trace(go.Bar(
-            x=top_features['importance'],
-            y=top_features['feature'],
-            orientation='h',
-            marker=dict(
-                color=top_features['importance'],
-                colorscale='Viridis',
-                showscale=True
-            ),
-            error_x=dict(
-                type='data',
-                array=top_features['importance_std'],
-                visible=True
-            )
-        ))
-        
-        fig.update_layout(
-            title='Feature Importance Analysis',
-            xaxis_title='Importance Score',
-            yaxis_title='Feature',
-            template='plotly_white',
-            height=max(600, top_n * 25),
-            showlegend=False
-        )
-        
-        if save_path:
-            fig.write_html(save_path)
-            logger.info(f"Feature importance plot saved to: {save_path}")
-        
-        return fig
-    
-    def create_probability_distribution_plot(self, probabilities, actual, save_path=None):
-        """
-        Create probability distribution plot
-        """
-        # Create subplots
+        strategy_cumulative = (1 + strategy_returns).cumprod()
+        buy_hold_cumulative = (1 + buy_hold_returns).cumprod()
+        excess_cumulative = strategy_cumulative / buy_hold_cumulative
+
+        # Create figure
         fig = make_subplots(
-            rows=2, cols=2,
-            subplot_titles=('Probability Distribution', 'Probability by Actual',
-                          'Cumulative Distribution', 'ROC Curve'),
-            specs=[[{"type": "histogram"}, {"type": "box"}],
-                   [{"type": "scatter"}, {"type": "scatter"}]]
+            rows=3, cols=1,
+            subplot_titles=('Cumulative Returns', 'Excess Returns', 'Strategy Signals'),
+            vertical_spacing=0.1,
+            row_heights=[0.5, 0.3, 0.2]
         )
-        
-        # Probability distribution
+
+        # Cumulative returns
         fig.add_trace(
-            go.Histogram(
-                x=probabilities,
-                nbinsx=50,
-                name='Probability Distribution',
-                marker_color=self.colors['primary']
+            go.Scatter(
+                x=data.index,
+                y=strategy_cumulative,
+                name='Strategy',
+                line=dict(color=self.colors['strategy'], width=2)
             ),
             row=1, col=1
         )
-        
-        # Probability by actual
-        actual_0 = probabilities[actual == 0]
-        actual_1 = probabilities[actual == 1]
-        
-        fig.add_trace(
-            go.Box(
-                y=actual_0,
-                name='Actual = 0',
-                marker_color=self.colors['danger']
-            ),
-            row=1, col=2
-        )
-        
-        fig.add_trace(
-            go.Box(
-                y=actual_1,
-                name='Actual = 1',
-                marker_color=self.colors['success']
-            ),
-            row=1, col=2
-        )
-        
-        # Cumulative distribution
-        sorted_probs = np.sort(probabilities)
-        cumulative = np.arange(1, len(sorted_probs) + 1) / len(sorted_probs)
-        
+
         fig.add_trace(
             go.Scatter(
-                x=sorted_probs,
-                y=cumulative,
-                mode='lines',
-                name='Cumulative Distribution',
-                line=dict(color=self.colors['primary'])
+                x=data.index,
+                y=buy_hold_cumulative,
+                name='Buy & Hold',
+                line=dict(color=self.colors['benchmark'], width=2)
+            ),
+            row=1, col=1
+        )
+
+        # Excess returns
+        fig.add_trace(
+            go.Scatter(
+                x=data.index,
+                y=excess_cumulative,
+                name='Excess Returns',
+                line=dict(color=self.colors['excess'], width=2),
+                fill='tonexty'
             ),
             row=2, col=1
         )
-        
-        # ROC curve
-        from sklearn.metrics import roc_curve
-        fpr, tpr, _ = roc_curve(actual, probabilities)
-        
+
+        # Add horizontal line at 1.0
+        fig.add_hline(y=1.0, line_dash="dash", line_color="gray", row=2, col=1)
+
+        # Strategy signals
         fig.add_trace(
             go.Scatter(
-                x=fpr,
-                y=tpr,
-                mode='lines',
-                name='ROC Curve',
-                line=dict(color=self.colors['primary'])
-            ),
-            row=2, col=2
-        )
-        
-        # Add diagonal line
-        fig.add_trace(
-            go.Scatter(
-                x=[0, 1],
-                y=[0, 1],
-                mode='lines',
-                name='Random',
-                line=dict(color=self.colors['secondary'], dash='dash')
-            ),
-            row=2, col=2
-        )
-        
-        fig.update_layout(
-            title='Probability Distribution Analysis',
-            height=800,
-            template='plotly_white',
-            showlegend=True
-        )
-        
-        if save_path:
-            fig.write_html(save_path)
-            logger.info(f"Probability distribution plot saved to: {save_path}")
-        
-        return fig
-    
-    def create_regime_attribution_plot(self, regime_data, save_path=None):
-        """
-        Create regime attribution plot
-        """
-        if regime_data is None or len(regime_data) == 0:
-            logger.warning("No regime data available for plotting")
-            return None
-        
-        # Create subplots
-        fig = make_subplots(
-            rows=2, cols=2,
-            subplot_titles=('Regime Distribution', 'Performance by Regime',
-                          'Regime Timeline', 'Regime Characteristics'),
-            specs=[[{"type": "pie"}, {"type": "bar"}],
-                   [{"type": "scatter"}, {"type": "scatter"}]]
-        )
-        
-        # Regime distribution
-        regime_counts = regime_data['regime'].value_counts()
-        fig.add_trace(
-            go.Pie(
-                labels=regime_counts.index,
-                values=regime_counts.values,
-                name='Regime Distribution'
-            ),
-            row=1, col=1
-        )
-        
-        # Performance by regime
-        regime_performance = regime_data.groupby('regime').agg({
-            'total_return': 'mean',
-            'sharpe_ratio': 'mean',
-            'volatility': 'mean'
-        }).reset_index()
-        
-        fig.add_trace(
-            go.Bar(
-                x=regime_performance['regime'],
-                y=regime_performance['total_return'],
-                name='Average Return',
-                marker_color=self.colors['primary']
-            ),
-            row=1, col=2
-        )
-        
-        # Regime timeline
-        fig.add_trace(
-            go.Scatter(
-                x=regime_data['date'],
-                y=regime_data['regime'],
+                x=data.index,
+                y=signals,
+                name='Long Signal',
                 mode='markers',
-                name='Regime Timeline',
                 marker=dict(
-                    size=8,
-                    color=regime_data['regime'],
-                    colorscale='Viridis'
+                    color=np.where(signals == 1, self.colors['positive'], self.colors['neutral']),
+                    size=8
                 )
             ),
-            row=2, col=1
-        )
-        
-        # Regime characteristics (Sharpe vs Volatility)
-        fig.add_trace(
-            go.Scatter(
-                x=regime_data['volatility'],
-                y=regime_data['sharpe_ratio'],
-                mode='markers',
-                name='Sharpe vs Volatility',
-                marker=dict(
-                    size=8,
-                    color=regime_data['regime'],
-                    colorscale='Viridis'
-                )
-            ),
-            row=2, col=2
-        )
-        
-        fig.update_layout(
-            title='Regime Analysis',
-            height=800,
-            template='plotly_white',
-            showlegend=True
-        )
-        
-        if save_path:
-            fig.write_html(save_path)
-            logger.info(f"Regime attribution plot saved to: {save_path}")
-        
-        return fig
-    
-    def create_risk_return_scatter(self, data, predictions, probabilities, save_path=None):
-        """
-        Create risk-return scatter plot
-        """
-        # Calculate rolling metrics
-        window = 252
-        rolling_metrics = []
-        
-        for i in range(window, len(data)):
-            window_data = data.iloc[i-window:i]
-            window_probs = probabilities.iloc[i-window:i]
-            
-            # Strategy returns
-            positions = (window_probs > 0.52).astype(int)
-            strategy_returns = positions * window_data['returns']
-            
-            # Calculate metrics
-            total_return = (1 + strategy_returns).prod() - 1
-            volatility = strategy_returns.std() * np.sqrt(252)
-            sharpe_ratio = self.calculate_sharpe_ratio(strategy_returns)
-            
-            rolling_metrics.append({
-                'date': data.index[i-1],
-                'return': total_return,
-                'volatility': volatility,
-                'sharpe_ratio': sharpe_ratio
-            })
-        
-        rolling_df = pd.DataFrame(rolling_metrics)
-        
-        # Create plot
-        fig = go.Figure()
-        
-        fig.add_trace(go.Scatter(
-            x=rolling_df['volatility'],
-            y=rolling_df['return'],
-            mode='markers',
-            name='Risk-Return',
-            marker=dict(
-                size=8,
-                color=rolling_df['sharpe_ratio'],
-                colorscale='Viridis',
-                showscale=True,
-                colorbar=dict(title='Sharpe Ratio')
-            ),
-            text=rolling_df['date'].dt.strftime('%Y-%m-%d'),
-            hovertemplate='<b>Date:</b> %{text}<br>' +
-                         '<b>Return:</b> %{y:.2%}<br>' +
-                         '<b>Volatility:</b> %{x:.2%}<br>' +
-                         '<b>Sharpe:</b> %{marker.color:.2f}<extra></extra>'
-        ))
-        
-        fig.update_layout(
-            title='Risk-Return Scatter Plot',
-            xaxis_title='Volatility (Annualized)',
-            yaxis_title='Return',
-            template='plotly_white',
-            height=600
-        )
-        
-        if save_path:
-            fig.write_html(save_path)
-            logger.info(f"Risk-return scatter plot saved to: {save_path}")
-        
-        return fig
-    
-    def create_comprehensive_dashboard(self, data, predictions, probabilities, 
-                                     feature_importance, regime_data=None, save_path=None):
-        """
-        Create comprehensive dashboard with all visualizations
-        """
-        # Create subplots
-        fig = make_subplots(
-            rows=4, cols=3,
-            subplot_titles=(
-                'Cumulative Returns', 'Drawdown Analysis', 'Feature Importance',
-                'Probability Distribution', 'Risk-Return Scatter', 'Regime Analysis',
-                'Monthly Returns Heatmap', 'Volatility Analysis', 'Sharpe Ratio Timeline',
-                'Win Rate Analysis', 'Correlation Matrix', 'Performance Metrics'
-            ),
-            specs=[[{"type": "scatter"}, {"type": "scatter"}, {"type": "bar"}],
-                   [{"type": "histogram"}, {"type": "scatter"}, {"type": "scatter"}],
-                   [{"type": "heatmap"}, {"type": "scatter"}, {"type": "scatter"}],
-                   [{"type": "scatter"}, {"type": "heatmap"}, {"type": "table"}]]
-        )
-        
-        # 1. Cumulative Returns
-        positions = (probabilities > 0.52).astype(int)
-        strategy_returns = positions * data['returns']
-        cumulative_strategy = (1 + strategy_returns).cumprod()
-        cumulative_buyhold = (1 + data['returns']).cumprod()
-        
-        fig.add_trace(
-            go.Scatter(x=data.index, y=cumulative_strategy, mode='lines', name='Strategy'),
-            row=1, col=1
-        )
-        fig.add_trace(
-            go.Scatter(x=data.index, y=cumulative_buyhold, mode='lines', name='Buy & Hold'),
-            row=1, col=1
-        )
-        
-        # 2. Drawdown
-        running_max = cumulative_strategy.expanding().max()
-        drawdown = (cumulative_strategy - running_max) / running_max
-        
-        fig.add_trace(
-            go.Scatter(x=data.index, y=drawdown * 100, mode='lines', name='Drawdown %'),
-            row=1, col=2
-        )
-        
-        # 3. Feature Importance
-        top_features = feature_importance.head(10)
-        fig.add_trace(
-            go.Bar(x=top_features['importance'], y=top_features['feature'], orientation='h'),
-            row=1, col=3
-        )
-        
-        # 4. Probability Distribution
-        fig.add_trace(
-            go.Histogram(x=probabilities, nbinsx=50),
-            row=2, col=1
-        )
-        
-        # 5. Risk-Return Scatter
-        window = 252
-        rolling_metrics = []
-        for i in range(window, len(data)):
-            window_data = data.iloc[i-window:i]
-            window_probs = probabilities.iloc[i-window:i]
-            positions = (window_probs > 0.52).astype(int)
-            strategy_returns = positions * window_data['returns']
-            total_return = (1 + strategy_returns).prod() - 1
-            volatility = strategy_returns.std() * np.sqrt(252)
-            rolling_metrics.append({'return': total_return, 'volatility': volatility})
-        
-        rolling_df = pd.DataFrame(rolling_metrics)
-        fig.add_trace(
-            go.Scatter(x=rolling_df['volatility'], y=rolling_df['return'], mode='markers'),
-            row=2, col=2
-        )
-        
-        # 6. Regime Analysis (if available)
-        if regime_data is not None and len(regime_data) > 0:
-            fig.add_trace(
-                go.Scatter(x=regime_data['date'], y=regime_data['regime'], mode='markers'),
-                row=2, col=3
-            )
-        
-        # 7. Monthly Returns Heatmap
-        monthly_returns = strategy_returns.resample('M').apply(lambda x: (1 + x).prod() - 1)
-        monthly_returns_pivot = monthly_returns.groupby([monthly_returns.index.year, monthly_returns.index.month]).first().unstack()
-        
-        fig.add_trace(
-            go.Heatmap(z=monthly_returns_pivot.values, x=monthly_returns_pivot.columns, y=monthly_returns_pivot.index),
             row=3, col=1
         )
-        
-        # 8. Volatility Analysis
-        rolling_vol = strategy_returns.rolling(window=30).std() * np.sqrt(252)
-        fig.add_trace(
-            go.Scatter(x=data.index, y=rolling_vol, mode='lines'),
-            row=3, col=2
-        )
-        
-        # 9. Sharpe Ratio Timeline
-        rolling_sharpe = self.calculate_rolling_sharpe(strategy_returns)
-        fig.add_trace(
-            go.Scatter(x=data.index, y=rolling_sharpe, mode='lines'),
-            row=3, col=3
-        )
-        
-        # 10. Win Rate Analysis
-        rolling_win_rate = strategy_returns.rolling(window=60).apply(lambda x: (x > 0).mean())
-        fig.add_trace(
-            go.Scatter(x=data.index, y=rolling_win_rate, mode='lines'),
-            row=4, col=1
-        )
-        
-        # 11. Correlation Matrix
-        # Create correlation matrix for key features
-        key_features = ['returns', 'volatility_20d', 'rsi_14', 'macd']
-        available_features = [f for f in key_features if f in data.columns]
-        if len(available_features) > 1:
-            corr_matrix = data[available_features].corr()
-            fig.add_trace(
-                go.Heatmap(z=corr_matrix.values, x=corr_matrix.columns, y=corr_matrix.index),
-                row=4, col=2
-            )
-        
-        # 12. Performance Metrics Table
-        total_return = (1 + strategy_returns).prod() - 1
-        buy_hold_return = (1 + data['returns']).prod() - 1
-        sharpe_ratio = self.calculate_sharpe_ratio(strategy_returns)
-        max_drawdown = self.calculate_max_drawdown(strategy_returns)
-        
-        metrics_table = go.Table(
-            header=dict(values=['Metric', 'Strategy', 'Buy & Hold']),
-            cells=dict(values=[
-                ['Total Return', 'Sharpe Ratio', 'Max Drawdown', 'Win Rate'],
-                [f'{total_return:.2%}', f'{sharpe_ratio:.2f}', f'{max_drawdown:.2%}', f'{(strategy_returns > 0).mean():.2%}'],
-                [f'{buy_hold_return:.2%}', 'N/A', 'N/A', 'N/A']
-            ])
-        )
-        
-        fig.add_trace(metrics_table, row=4, col=3)
-        
+
+        # Update layout
         fig.update_layout(
-            title='Comprehensive Trading Strategy Dashboard',
-            height=1200,
-            template='plotly_white',
-            showlegend=False
+            title='Trading Strategy Performance Analysis',
+            height=800,
+            showlegend=True,
+            hovermode='x unified'
         )
-        
+
+        # Update axes
+        fig.update_xaxes(title_text="Date", row=3, col=1)
+        fig.update_yaxes(title_text="Cumulative Return", row=1, col=1)
+        fig.update_yaxes(title_text="Excess Return", row=2, col=1)
+        fig.update_yaxes(title_text="Signal", row=3, col=1)
+
         if save_path:
             fig.write_html(save_path)
-            logger.info(f"Comprehensive dashboard saved to: {save_path}")
-        
+            logger.info(f"Cumulative returns plot saved to {save_path}")
+
         return fig
-    
-    def calculate_sharpe_ratio(self, returns, risk_free_rate=0.02):
+
+    def create_feature_importance_plot(
+        self,
+        feature_importance: pd.DataFrame,
+        save_path: str = None
+    ) -> go.Figure:
         """
-        Calculate Sharpe ratio
+        Create feature importance visualization
+
+        Args:
+            feature_importance: DataFrame with feature importance scores
+            save_path: Path to save the plot
+
+        Returns:
+            Plotly figure object
         """
-        excess_returns = returns - risk_free_rate / 252
-        if returns.std() == 0:
-            return 0
-        return np.sqrt(252) * excess_returns.mean() / returns.std()
-    
-    def calculate_max_drawdown(self, returns):
-        """
-        Calculate maximum drawdown
-        """
-        cumulative = (1 + returns).cumprod()
-        running_max = cumulative.expanding().max()
-        drawdown = (cumulative - running_max) / running_max
-        return drawdown.min()
-    
-    def calculate_rolling_sharpe(self, returns, window=252):
-        """
-        Calculate rolling Sharpe ratio
-        """
-        rolling_sharpe = []
-        for i in range(window, len(returns)):
-            window_returns = returns.iloc[i-window:i]
-            sharpe = self.calculate_sharpe_ratio(window_returns)
-            rolling_sharpe.append(sharpe)
+        # Prepare data
+        top_features = feature_importance.head(15)
         
-        return pd.Series(rolling_sharpe, index=returns.index[window:])
-    
-    def export_all_visualizations(self, data, predictions, probabilities, 
-                                 feature_importance, regime_data=None):
+        # Create figure
+        fig = make_subplots(
+            rows=2, cols=1,
+            subplot_titles=('Feature Importance (Combined Score)', 'Random Forest Importance'),
+            vertical_spacing=0.15
+        )
+
+        # Combined score
+        fig.add_trace(
+            go.Bar(
+                x=top_features['combined_score'],
+                y=top_features['feature'],
+                orientation='h',
+                name='Combined Score',
+                marker_color=self.colors['strategy']
+            ),
+            row=1, col=1
+        )
+
+        # Random Forest importance
+        fig.add_trace(
+            go.Bar(
+                x=top_features['rf_importance'],
+                y=top_features['feature'],
+                orientation='h',
+                name='RF Importance',
+                marker_color=self.colors['benchmark']
+            ),
+            row=2, col=1
+        )
+
+        # Update layout
+        fig.update_layout(
+            title='Feature Importance Analysis',
+            height=800,
+            showlegend=False
+        )
+
+        # Update axes
+        fig.update_xaxes(title_text="Importance Score", row=1, col=1)
+        fig.update_xaxes(title_text="Importance Score", row=2, col=1)
+
+        if save_path:
+            fig.write_html(save_path)
+            logger.info(f"Feature importance plot saved to {save_path}")
+
+        return fig
+
+    def create_risk_return_scatter(
+        self,
+        returns: pd.Series,
+        probabilities: pd.Series,
+        save_path: str = None
+    ) -> go.Figure:
         """
-        Export all visualizations as HTML files
+        Create risk-return scatter plot
+
+        Args:
+            returns: Strategy returns
+            probabilities: Model probabilities
+            save_path: Path to save the plot
+
+        Returns:
+            Plotly figure object
         """
-        export_dir = 'exports/visualizations'
-        os.makedirs(export_dir, exist_ok=True)
+        # Calculate metrics for different probability thresholds
+        thresholds = np.arange(0.3, 0.8, 0.05)
+        results = []
+
+        for threshold in thresholds:
+            signals = (probabilities > threshold).astype(int)
+            strategy_returns = signals * returns
+            
+            if strategy_returns.std() > 0:
+                sharpe = strategy_returns.mean() / strategy_returns.std()
+                win_rate = (strategy_returns > 0).mean()
+                total_return = (1 + strategy_returns).prod() - 1
+                
+                results.append({
+                    'threshold': threshold,
+                    'sharpe_ratio': sharpe,
+                    'win_rate': win_rate,
+                    'total_return': total_return,
+                    'volatility': strategy_returns.std(),
+                    'mean_return': strategy_returns.mean()
+                })
+
+        results_df = pd.DataFrame(results)
+
+        # Create scatter plot
+        fig = go.Figure()
+
+        fig.add_trace(
+            go.Scatter(
+                x=results_df['volatility'],
+                y=results_df['mean_return'],
+                mode='markers+text',
+                text=results_df['threshold'].round(2),
+                textposition="top center",
+                marker=dict(
+                    size=results_df['sharpe_ratio'] * 20,
+                    color=results_df['sharpe_ratio'],
+                    colorscale='Viridis',
+                    showscale=True,
+                    colorbar=dict(title="Sharpe Ratio")
+                ),
+                name='Strategy Performance'
+            )
+        )
+
+        # Add efficient frontier line
+        sorted_df = results_df.sort_values('volatility')
+        fig.add_trace(
+            go.Scatter(
+                x=sorted_df['volatility'],
+                y=sorted_df['mean_return'],
+                mode='lines',
+                line=dict(color='red', dash='dash'),
+                name='Efficient Frontier'
+            )
+        )
+
+        # Update layout
+        fig.update_layout(
+            title='Risk-Return Analysis by Probability Threshold',
+            xaxis_title='Volatility',
+            yaxis_title='Mean Return',
+            height=600
+        )
+
+        if save_path:
+            fig.write_html(save_path)
+            logger.info(f"Risk-return scatter plot saved to {save_path}")
+
+        return fig
+
+    def create_performance_dashboard(
+        self,
+        data: pd.DataFrame,
+        predictions: pd.Series,
+        probabilities: pd.Series,
+        feature_importance: pd.DataFrame,
+        save_path: str = None
+    ) -> go.Figure:
+        """
+        Create comprehensive performance dashboard
+
+        Args:
+            data: DataFrame with price data
+            predictions: Model predictions
+            probabilities: Model probabilities
+            feature_importance: Feature importance DataFrame
+            save_path: Path to save the plot
+
+        Returns:
+            Plotly figure object
+        """
+        # Calculate performance metrics
+        signals = (probabilities > 0.5).astype(int)
+        strategy_returns = signals * data['returns']
+        buy_hold_returns = data['returns']
+
+        # Cumulative returns
+        strategy_cumulative = (1 + strategy_returns).cumprod()
+        buy_hold_cumulative = (1 + buy_hold_returns).cumprod()
+        excess_cumulative = strategy_cumulative / buy_hold_cumulative
+
+        # Create subplots
+        fig = make_subplots(
+            rows=3, cols=2,
+            subplot_titles=(
+                'Cumulative Returns', 'Excess Returns',
+                'Feature Importance', 'Returns Distribution',
+                'Strategy Signals', 'Performance Metrics'
+            ),
+            specs=[
+                [{"type": "scatter"}, {"type": "scatter"}],
+                [{"type": "bar"}, {"type": "histogram"}],
+                [{"type": "scatter"}, {"type": "table"}]
+            ],
+            vertical_spacing=0.1,
+            horizontal_spacing=0.1
+        )
+
+        # 1. Cumulative returns
+        fig.add_trace(
+            go.Scatter(
+                x=data.index,
+                y=strategy_cumulative,
+                name='Strategy',
+                line=dict(color=self.colors['strategy'])
+            ),
+            row=1, col=1
+        )
+
+        fig.add_trace(
+            go.Scatter(
+                x=data.index,
+                y=buy_hold_cumulative,
+                name='Buy & Hold',
+                line=dict(color=self.colors['benchmark'])
+            ),
+            row=1, col=1
+        )
+
+        # 2. Excess returns
+        fig.add_trace(
+            go.Scatter(
+                x=data.index,
+                y=excess_cumulative,
+                name='Excess',
+                line=dict(color=self.colors['excess'])
+            ),
+            row=1, col=2
+        )
+
+        # 3. Feature importance
+        top_features = feature_importance.head(10)
+        fig.add_trace(
+            go.Bar(
+                x=top_features['combined_score'],
+                y=top_features['feature'],
+                orientation='h',
+                marker_color=self.colors['strategy']
+            ),
+            row=2, col=1
+        )
+
+        # 4. Returns distribution
+        fig.add_trace(
+            go.Histogram(
+                x=strategy_returns,
+                name='Strategy Returns',
+                marker_color=self.colors['strategy'],
+                opacity=0.7
+            ),
+            row=2, col=2
+        )
+
+        fig.add_trace(
+            go.Histogram(
+                x=buy_hold_returns,
+                name='Buy & Hold Returns',
+                marker_color=self.colors['benchmark'],
+                opacity=0.7
+            ),
+            row=2, col=2
+        )
+
+        # 5. Strategy signals
+        fig.add_trace(
+            go.Scatter(
+                x=data.index,
+                y=signals,
+                mode='markers',
+                marker=dict(
+                    color=np.where(signals == 1, self.colors['positive'], self.colors['neutral']),
+                    size=6
+                ),
+                name='Signals'
+            ),
+            row=3, col=1
+        )
+
+        # 6. Performance metrics table
+        metrics = self._calculate_performance_metrics(strategy_returns, buy_hold_returns)
         
+        fig.add_trace(
+            go.Table(
+                header=dict(values=['Metric', 'Strategy', 'Buy & Hold', 'Excess']),
+                cells=dict(values=[
+                    list(metrics.keys()),
+                    [f"{v:.4f}" for v in metrics.values()],
+                    [f"{v:.4f}" for v in metrics.values()],
+                    [f"{v:.4f}" for v in metrics.values()]
+                ])
+            ),
+            row=3, col=2
+        )
+
+        # Update layout
+        fig.update_layout(
+            title='Comprehensive Trading Strategy Dashboard',
+            height=1000,
+            showlegend=True
+        )
+
+        if save_path:
+            fig.write_html(save_path)
+            logger.info(f"Performance dashboard saved to {save_path}")
+
+        return fig
+
+    def _calculate_performance_metrics(
+        self, strategy_returns: pd.Series, benchmark_returns: pd.Series
+    ) -> Dict:
+        """
+        Calculate key performance metrics
+
+        Args:
+            strategy_returns: Strategy returns
+            benchmark_returns: Benchmark returns
+
+        Returns:
+            Dictionary with performance metrics
+        """
+        # Basic metrics
+        strategy_mean = strategy_returns.mean()
+        strategy_std = strategy_returns.std()
+        benchmark_mean = benchmark_returns.mean()
+        benchmark_std = benchmark_returns.std()
+
+        # Sharpe ratios
+        strategy_sharpe = strategy_mean / strategy_std if strategy_std > 0 else 0
+        benchmark_sharpe = benchmark_mean / benchmark_std if benchmark_std > 0 else 0
+
+        # Maximum drawdown
+        strategy_cumulative = (1 + strategy_returns).cumprod()
+        strategy_drawdown = (strategy_cumulative / strategy_cumulative.expanding().max() - 1).min()
+        
+        benchmark_cumulative = (1 + benchmark_returns).cumprod()
+        benchmark_drawdown = (benchmark_cumulative / benchmark_cumulative.expanding().max() - 1).min()
+
+        # Win rate
+        strategy_win_rate = (strategy_returns > 0).mean()
+        benchmark_win_rate = (benchmark_returns > 0).mean()
+
+        return {
+            'Total Return': (1 + strategy_returns).prod() - 1,
+            'Sharpe Ratio': strategy_sharpe,
+            'Max Drawdown': strategy_drawdown,
+            'Win Rate': strategy_win_rate,
+            'Volatility': strategy_std,
+            'Excess Return': strategy_mean - benchmark_mean
+        }
+
+    def export_all_visualizations(
+        self,
+        data: pd.DataFrame,
+        predictions: pd.Series,
+        probabilities: pd.Series,
+        feature_importance: pd.DataFrame,
+        regime_data: pd.DataFrame = None,
+        save_dir: str = "exports/visualizations"
+    ) -> str:
+        """
+        Export all visualizations
+
+        Args:
+            data: DataFrame with price data
+            predictions: Model predictions
+            probabilities: Model probabilities
+            feature_importance: Feature importance DataFrame
+            regime_data: Regime analysis data
+            save_dir: Directory to save visualizations
+
+        Returns:
+            Path to saved directory
+        """
+        import os
+        os.makedirs(save_dir, exist_ok=True)
+
         # Create all visualizations
         self.create_cumulative_returns_plot(
             data, predictions, probabilities,
-            save_path=f'{export_dir}/cumulative_returns.html'
+            save_path=f"{save_dir}/cumulative_returns.html"
         )
-        
-        self.create_drawdown_plot(
-            data, predictions, probabilities,
-            save_path=f'{export_dir}/drawdown_analysis.html'
-        )
-        
+
         self.create_feature_importance_plot(
             feature_importance,
-            save_path=f'{export_dir}/feature_importance.html'
+            save_path=f"{save_dir}/feature_importance.html"
         )
-        
-        self.create_probability_distribution_plot(
-            probabilities, predictions,
-            save_path=f'{export_dir}/probability_distribution.html'
-        )
-        
+
         self.create_risk_return_scatter(
-            data, predictions, probabilities,
-            save_path=f'{export_dir}/risk_return_scatter.html'
+            data['returns'], probabilities,
+            save_path=f"{save_dir}/risk_return_scatter.html"
         )
-        
-        if regime_data is not None:
-            self.create_regime_attribution_plot(
-                regime_data,
-                save_path=f'{export_dir}/regime_attribution.html'
+
+        self.create_performance_dashboard(
+            data, predictions, probabilities, feature_importance,
+            save_path=f"{save_dir}/comprehensive_dashboard.html"
+        )
+
+        logger.info(f"All visualizations exported to {save_dir}")
+        return save_dir
+
+    def create_regime_analysis_plot(
+        self,
+        regime_data: pd.DataFrame,
+        save_path: str = None
+    ) -> go.Figure:
+        """
+        Create regime analysis visualization
+
+        Args:
+            regime_data: Regime analysis data
+            save_path: Path to save the plot
+
+        Returns:
+            Plotly figure object
+        """
+        if regime_data is None or len(regime_data) == 0:
+            logger.warning("No regime data provided")
+            return go.Figure()
+
+        # Create subplots
+        fig = make_subplots(
+            rows=2, cols=2,
+            subplot_titles=(
+                'Regime Distribution', 'Performance by Regime',
+                'Regime Transitions', 'Regime Duration'
             )
-        
-        # Create comprehensive dashboard
-        self.create_comprehensive_dashboard(
-            data, predictions, probabilities, feature_importance, regime_data,
-            save_path=f'{export_dir}/comprehensive_dashboard.html'
         )
-        
-        logger.info(f"All visualizations exported to: {export_dir}")
-        return export_dir 
+
+        # 1. Regime distribution
+        regime_counts = regime_data['regime'].value_counts()
+        fig.add_trace(
+            go.Bar(
+                x=regime_counts.index,
+                y=regime_counts.values,
+                name='Regime Count',
+                marker_color=self.colors['strategy']
+            ),
+            row=1, col=1
+        )
+
+        # 2. Performance by regime
+        regime_performance = regime_data.groupby('regime')['returns'].agg(['mean', 'std']).reset_index()
+        fig.add_trace(
+            go.Scatter(
+                x=regime_performance['mean'],
+                y=regime_performance['std'],
+                mode='markers+text',
+                text=regime_performance['regime'],
+                textposition="top center",
+                marker=dict(size=15),
+                name='Regime Performance'
+            ),
+            row=1, col=2
+        )
+
+        # 3. Regime transitions (if available)
+        if 'regime_change' in regime_data.columns:
+            transitions = regime_data['regime_change'].value_counts()
+            fig.add_trace(
+                go.Bar(
+                    x=transitions.index,
+                    y=transitions.values,
+                    name='Transitions',
+                    marker_color=self.colors['benchmark']
+                ),
+                row=2, col=1
+            )
+
+        # 4. Regime duration (if available)
+        if 'regime_duration' in regime_data.columns:
+            fig.add_trace(
+                go.Histogram(
+                    x=regime_data['regime_duration'],
+                    name='Duration',
+                    marker_color=self.colors['excess']
+                ),
+                row=2, col=2
+            )
+
+        # Update layout
+        fig.update_layout(
+            title='Regime Analysis',
+            height=800,
+            showlegend=True
+        )
+
+        if save_path:
+            fig.write_html(save_path)
+            logger.info(f"Regime analysis plot saved to {save_path}")
+
+        return fig
+
+
+def main():
+    """Test professional visualizations"""
+    # Create sample data
+    np.random.seed(42)
+    n_samples = 1000
+    
+    dates = pd.date_range("2020-01-01", periods=n_samples, freq="D")
+    returns = np.random.normal(0.001, 0.02, n_samples)
+    probabilities = np.random.beta(2, 2, n_samples)
+    predictions = (probabilities > 0.5).astype(int)
+    
+    data = pd.DataFrame({
+        'returns': returns,
+        'close': 100 * (1 + pd.Series(returns)).cumprod()
+    }, index=dates)
+    
+    feature_importance = pd.DataFrame({
+        'feature': [f'feature_{i}' for i in range(10)],
+        'combined_score': np.random.rand(10),
+        'rf_importance': np.random.rand(10)
+    })
+    
+    # Create visualizations
+    visualizer = ProfessionalVisualizer()
+    
+    # Test individual plots
+    visualizer.create_cumulative_returns_plot(
+        data, predictions, probabilities,
+        save_path="test_cumulative_returns.html"
+    )
+    
+    visualizer.create_feature_importance_plot(
+        feature_importance,
+        save_path="test_feature_importance.html"
+    )
+    
+    print("Professional visualizations test completed!")
+
+
+if __name__ == "__main__":
+    main() 
