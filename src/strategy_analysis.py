@@ -2,18 +2,30 @@ import pandas as pd
 import numpy as np
 from typing import List, Dict, Tuple
 from .evaluation import calculate_all_metrics
+from .transaction_costs import TransactionCostModel
+from .position_sizing import PositionSizer
 
 
 def analyze_strategy_performance(
-    prices: List[float], signals: List[int], initial_capital: float = 10000.0
+    prices: List[float], 
+    signals: List[int], 
+    initial_capital: float = 10000.0,
+    volumes: List[float] = None,
+    atr_values: List[float] = None,
+    include_transaction_costs: bool = True,
+    position_sizing_strategy: str = "volatility_targeted"
 ) -> Dict[str, float]:
     """
-    Analyze trading strategy performance.
+    Analyze trading strategy performance with optional transaction costs and position sizing.
 
     Args:
         prices (List[float]): List of prices
         signals (List[int]): List of trading signals (1 for buy, 0 for hold, -1 for sell)
         initial_capital (float): Initial capital
+        volumes (List[float]): List of trading volumes (optional)
+        atr_values (List[float]): List of ATR values (optional)
+        include_transaction_costs (bool): Whether to include transaction costs
+        position_sizing_strategy (str): Position sizing strategy to use
 
     Returns:
         Dict[str, float]: Performance metrics
@@ -21,14 +33,58 @@ def analyze_strategy_performance(
     if len(prices) != len(signals):
         raise ValueError("Prices and signals must have the same length")
 
-    # Calculate strategy returns
+    # Initialize position sizer
+    position_sizer = PositionSizer()
+
+    # Calculate basic strategy returns
     strategy_returns = calculate_strategy_returns(prices, signals)
 
     # Calculate buy-and-hold returns for comparison
     buy_hold_returns = calculate_buy_hold_returns(prices)
 
-    # Calculate metrics
-    strategy_metrics = calculate_all_metrics(strategy_returns)
+    # Apply transaction costs if requested and data available
+    if include_transaction_costs and volumes is not None and atr_values is not None:
+        cost_model = TransactionCostModel()
+        adjusted_returns, portfolio_values, cost_summary = cost_model.apply_transaction_costs(
+            prices, signals, volumes, atr_values, initial_capital
+        )
+        
+        # Calculate cost impact analysis
+        cost_impact = cost_model.calculate_cost_impact_analysis(
+            strategy_returns, adjusted_returns, cost_summary
+        )
+        
+        # Calculate position sizing metrics
+        position_sizes = calculate_position_sizes(
+            prices, signals, atr_values, initial_capital, position_sizer, position_sizing_strategy
+        )
+        
+        # Calculate portfolio risk metrics
+        portfolio_risk_metrics = position_sizer.calculate_portfolio_risk_metrics(
+            position_sizes, adjusted_returns, initial_capital
+        )
+        
+        # Use adjusted returns for metrics
+        strategy_metrics = calculate_all_metrics(adjusted_returns)
+        
+        # Add transaction cost metrics
+        strategy_metrics.update({
+            'total_fees': cost_summary['total_fees'],
+            'total_slippage': cost_summary['total_slippage'],
+            'total_costs': cost_summary['total_costs'],
+            'trade_count': cost_summary['trade_count'],
+            'cost_impact': cost_summary['cost_impact'],
+            'return_degradation': cost_impact['return_degradation'],
+            'degradation_percentage': cost_impact['degradation_percentage']
+        })
+        
+        # Add position sizing metrics
+        strategy_metrics.update(portfolio_risk_metrics)
+        
+    else:
+        # Calculate metrics without transaction costs
+        strategy_metrics = calculate_all_metrics(strategy_returns)
+
     buy_hold_metrics = calculate_all_metrics(buy_hold_returns)
 
     # Add comparison metrics
@@ -89,6 +145,66 @@ def calculate_buy_hold_returns(prices: List[float]) -> List[float]:
         ret = (prices[i] - prices[i - 1]) / prices[i - 1]
         returns.append(ret)
     return returns
+
+
+def calculate_position_sizes(
+    prices: List[float],
+    signals: List[int],
+    atr_values: List[float],
+    initial_capital: float,
+    position_sizer: PositionSizer,
+    strategy: str = "volatility_targeted"
+) -> List[float]:
+    """
+    Calculate position sizes for each trading signal.
+    
+    Args:
+        prices (List[float]): List of prices
+        signals (List[int]): List of trading signals
+        atr_values (List[float]): List of ATR values
+        initial_capital (float): Initial capital
+        position_sizer (PositionSizer): Position sizing instance
+        strategy (str): Position sizing strategy
+        
+    Returns:
+        List[float]: Position sizes for each period
+    """
+    position_sizes = []
+    current_capital = initial_capital
+    position = 0  # 0: no position, 1: long position
+    
+    for i in range(len(prices)):
+        if i == 0:
+            position_sizes.append(0.0)
+            continue
+            
+        price = prices[i]
+        signal = signals[i-1] if i > 0 else 0
+        atr = atr_values[i] if i < len(atr_values) else atr_values[-1] if atr_values else 0.01
+        
+        # Update position based on signal
+        if signal == 1 and position == 0:  # Buy signal
+            position = 1
+            # Calculate position size using the position sizer
+            position_size = position_sizer.calculate_optimal_position_size(
+                current_capital, price, atr, strategy
+            )
+        elif signal == -1 and position == 1:  # Sell signal
+            position = 0
+            position_size = 0.0
+        else:
+            # No position change, maintain current position size
+            position_size = position_sizes[-1] if position_sizes else 0.0
+            
+        position_sizes.append(position_size)
+        
+        # Update capital (simplified - in reality this would be more complex)
+        if i > 0:
+            price_return = (price - prices[i-1]) / prices[i-1]
+            if position == 1:
+                current_capital *= (1 + price_return)
+    
+    return position_sizes
 
 
 def calculate_trade_statistics(signals: List[int]) -> Dict[str, float]:
@@ -186,6 +302,29 @@ def generate_performance_report(
     report.append(f"Max Trade Duration:  {trade_stats['max_trade_duration']} days")
     report.append(f"Min Trade Duration:  {trade_stats['min_trade_duration']} days")
     report.append("")
+    
+    # Position Sizing Metrics (if available)
+    if 'concentration_ratio' in strategy_metrics:
+        report.append("POSITION SIZING METRICS:")
+        report.append("-" * 30)
+        report.append(f"Position Concentration: {strategy_metrics['concentration_ratio']:.4f}")
+        report.append(f"Total Position Value: {strategy_metrics['total_position_value']:.2f}")
+        report.append(f"Position Count:        {strategy_metrics['position_count']}")
+        report.append(f"Portfolio Volatility: {strategy_metrics['portfolio_volatility']:.4f}")
+        report.append("")
+    
+    # Transaction Cost Metrics (if available)
+    if 'total_costs' in strategy_metrics:
+        report.append("TRANSACTION COST ANALYSIS:")
+        report.append("-" * 30)
+        report.append(f"Total Fees:           {strategy_metrics['total_fees']:.2f}")
+        report.append(f"Total Slippage:      {strategy_metrics['total_slippage']:.2f}")
+        report.append(f"Total Costs:          {strategy_metrics['total_costs']:.2f}")
+        report.append(f"Cost Impact:          {strategy_metrics['cost_impact']:.4f}")
+        report.append(f"Return Degradation:   {strategy_metrics['return_degradation']:.4f}")
+        report.append(f"Degradation %:        {strategy_metrics['degradation_percentage']:.2f}%")
+        report.append("")
+    
     report.append("=" * 60)
 
     return "\n".join(report)

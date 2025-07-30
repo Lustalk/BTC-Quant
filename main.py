@@ -21,6 +21,7 @@ from src.model import prepare_features_target, walk_forward_validation
 from src.evaluation import calculate_all_metrics
 from src.strategy_analysis import analyze_strategy_performance, calculate_trade_statistics, print_performance_table
 from src.parameter_optimization import ParameterOptimizer
+from src.transaction_costs import TransactionCostModel
 
 
 def main():
@@ -149,10 +150,30 @@ def main():
                 print("\nStrategy Performance:")
             
             if len(signals) == len(prices):
-                strategy_metrics = analyze_strategy_performance(prices, signals)
+                # Get volume and ATR data for transaction cost analysis
+                volumes = data_with_features['Volume'].tolist()
+                atr_values = data_with_features['ATR'].tolist() if 'ATR' in data_with_features.columns else [0.01] * len(prices)
+                
+                # Analyze strategy with transaction costs and position sizing
+                strategy_metrics = analyze_strategy_performance(
+                    prices, signals, 
+                    volumes=volumes, 
+                    atr_values=atr_values,
+                    include_transaction_costs=True,
+                    position_sizing_strategy="volatility_targeted"
+                )
                 trade_stats = calculate_trade_statistics(signals)
                 
                 print_performance_table(strategy_metrics)
+                
+                # Print transaction cost analysis
+                if 'total_costs' in strategy_metrics:
+                    print(f"\nTransaction Cost Analysis:")
+                    print(f"  Total Fees: ${strategy_metrics['total_fees']:.2f}")
+                    print(f"  Total Slippage: ${strategy_metrics['total_slippage']:.2f}")
+                    print(f"  Total Costs: ${strategy_metrics['total_costs']:.2f}")
+                    print(f"  Cost Impact: {strategy_metrics['cost_impact']:.4f}")
+                    print(f"  Return Degradation: {strategy_metrics['degradation_percentage']:.2f}%")
                 
                 print(f"\nTrading Statistics:")
                 print(f"  Total Trades: {trade_stats['total_trades']}")

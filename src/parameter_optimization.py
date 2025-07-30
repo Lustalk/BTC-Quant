@@ -17,6 +17,7 @@ from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_sc
 import xgboost as xgb
 from .evaluation import calculate_all_metrics
 from .strategy_analysis import analyze_strategy_performance
+from .transaction_costs import TransactionCostModel
 
 
 class ParameterOptimizer:
@@ -190,7 +191,7 @@ class ParameterOptimizer:
     
     def objective_function(self, trial: optuna.Trial) -> float:
         """
-        Objective function for Optuna optimization.
+        Objective function for Optuna optimization with transaction costs.
         
         Args:
             trial: Optuna trial object
@@ -229,6 +230,16 @@ class ParameterOptimizer:
             'take_profit': trial.suggest_float('take_profit', 0.01, 0.20),
             'stop_loss': trial.suggest_float('stop_loss', 0.005, 0.10),
             
+            # Transaction cost parameters
+            'fee_type': trial.suggest_categorical('fee_type', ['maker', 'taker']),
+            'risk_per_trade': trial.suggest_float('risk_per_trade', 0.01, 0.05),
+            
+            # Position sizing parameters
+            'position_sizing_strategy': trial.suggest_categorical('position_sizing_strategy', 
+                                                                ['volatility_targeted', 'risk_based', 'hybrid']),
+            'target_volatility': trial.suggest_float('target_volatility', 0.10, 0.25),
+            'stop_loss_pct': trial.suggest_float('stop_loss_pct', 0.01, 0.05),
+            
             # ML model parameters - wider ranges
             'learning_rate': trial.suggest_float('learning_rate', 0.001, 0.5),
             'max_depth': trial.suggest_int('max_depth', 2, 15),
@@ -244,20 +255,34 @@ class ParameterOptimizer:
             # Generate signals with TP/SL
             signals, entry_prices = self.generate_signals_with_tp_sl(df_with_indicators, params)
             
-            # Calculate strategy performance
+            # Calculate strategy performance with transaction costs
             prices = df_with_indicators['Close'].tolist()
+            volumes = df_with_indicators['Volume'].tolist()
+            atr_values = df_with_indicators['ATR'].tolist()
+            
             if len(signals) == len(prices):
-                strategy_metrics = analyze_strategy_performance(prices, signals)
+                # Analyze strategy with transaction costs and position sizing
+                strategy_metrics = analyze_strategy_performance(
+                    prices, signals, 
+                    volumes=volumes, 
+                    atr_values=atr_values,
+                    include_transaction_costs=True,
+                    position_sizing_strategy=params.get('position_sizing_strategy', 'volatility_targeted')
+                )
                 
                 # Calculate ML performance
                 X, y = self.prepare_features_target(df_with_indicators)
                 ml_score = self.evaluate_ml_performance(X, y, params)
                 
-                # Enhanced scoring with Sortino ratio as primary metric
+                # Enhanced scoring with Calmar ratio as primary metric
                 sortino_ratio = strategy_metrics.get('sortino_ratio', 0)
                 sharpe_ratio = strategy_metrics.get('sharpe_ratio', 0)
                 total_return = strategy_metrics.get('total_return', 0)
+                max_drawdown = strategy_metrics.get('max_drawdown', 0.01)
                 win_rate = strategy_metrics.get('win_rate', 0)
+                
+                # Calculate Calmar ratio (Return / Max Drawdown)
+                calmar_ratio = total_return / max_drawdown if max_drawdown > 0 else 0
                 
                 # Penalize negative returns heavily
                 if total_return < 0:
@@ -267,11 +292,21 @@ class ParameterOptimizer:
                 if win_rate < 0.3:
                     return -500
                 
-                # Combined score with Sortino ratio as primary metric
-                strategy_score = (0.6 * sortino_ratio +
-                                0.2 * sharpe_ratio +
+                # Penalize excessive transaction costs
+                cost_impact = strategy_metrics.get('cost_impact', 0)
+                if cost_impact > 0.1:  # More than 10% cost impact
+                    return -200
+                
+                # Combined score with Calmar ratio as primary metric
+                strategy_score = (0.5 * calmar_ratio +
+                                0.2 * sortino_ratio +
+                                0.1 * sharpe_ratio +
                                 0.1 * total_return +
                                 0.1 * win_rate)
+                
+                # Penalize high transaction costs
+                cost_penalty = max(0, cost_impact * 10)
+                strategy_score -= cost_penalty
                 
                 combined_score = (0.7 * strategy_score + 0.3 * ml_score)
                 

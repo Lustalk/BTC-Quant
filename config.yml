@@ -60,6 +60,26 @@ strategy:
     take_profit: null
     max_position_size: null
 
+# Transaction Costs & Market Friction
+transaction_costs:
+  # Fee structure (percentage of trade value)
+  maker_fee: 0.0004  # 0.04% for maker orders
+  taker_fee: 0.0006  # 0.06% for taker orders
+  default_fee: 0.0006  # Default to taker fee
+  
+  # Slippage model parameters
+  slippage:
+    base_slippage: 0.0001  # 0.01% base slippage
+    volatility_multiplier: 0.5  # Multiplier for ATR-based slippage
+    volume_impact: 0.00005  # Impact per $100k traded
+    max_slippage: 0.005  # Maximum 0.5% slippage
+    
+  # Position sizing parameters
+  position_sizing:
+    default_risk_per_trade: 0.02  # 2% risk per trade
+    max_position_size: 0.10  # Maximum 10% of portfolio
+    volatility_target: 0.15  # Target 15% annual volatility
+
 # Performance Thresholds
 thresholds:
   minimum_accuracy: 0.50
