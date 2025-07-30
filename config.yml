@@ -7,6 +7,9 @@ data:
   default_start_date: "2023-01-01"
   default_end_date: "2024-01-01"
   data_source: "yfinance"
+  default_interval: "30m"  # 30-minute data for intraday analysis
+  market_hours: [9, 17]  # Market hours filter
+  min_data_points: 100
 
 # Model Configuration
 model:
@@ -18,6 +21,7 @@ model:
 
 # Feature Engineering
 features:
+  # Basic technical indicators
   technical_indicators:
     - "SMA"
     - "EMA"
@@ -30,6 +34,27 @@ features:
     - "OBV"
     - "VWAP"
   
+  # Advanced microstructure features
+  microstructure_features:
+    - "VWAP_Enhanced"
+    - "Order_Flow_Imbalance"
+    - "Bid_Ask_Spread"
+    - "Volume_Microstructure"
+    - "Price_Microstructure"
+  
+  # Time-based features
+  time_features:
+    - "Hour_Encoding"
+    - "Day_Encoding"
+    - "Market_Hours"
+    - "Cyclical_Encoding"
+  
+  # Fractional differentiation
+  fractional_features:
+    enabled: true
+    d_values: [0.3, 0.5, 0.7]
+    series: ["Price", "Volume", "Returns"]
+  
   # Rolling window periods
   rolling_windows: [5, 10, 20, 50]
   
@@ -39,6 +64,7 @@ features:
     - "log_returns"
     - "price_ratios"
     - "lagged_features"
+    - "fractional_differentiation"
 
 # Evaluation Metrics
 evaluation:

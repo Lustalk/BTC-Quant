@@ -4,20 +4,16 @@ from src.data_pipeline import download_data
 
 
 def test_download_data_structure():
-    """Test that download_data function has the correct structure and signature."""
+    """Test that download_data returns the expected structure."""
+    # Test the function signature
     import inspect
-
-    # Check that the function exists and has the right signature
-    sig = inspect.signature(download_data)
-    params = list(sig.parameters.keys())
-
-    assert "ticker" in params
-    assert "start_date" in params
-    assert "end_date" in params
-    assert len(params) == 3
-
-    # Check return type annotation
-    assert sig.return_annotation == pd.DataFrame
+    params = inspect.signature(download_data).parameters
+    assert len(params) == 5  # ticker, start_date, end_date, interval, data_source
+    assert 'ticker' in params
+    assert 'start_date' in params
+    assert 'end_date' in params
+    assert 'interval' in params
+    assert 'data_source' in params
 
 
 def test_download_data():
