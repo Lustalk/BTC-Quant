@@ -167,19 +167,16 @@ def calculate_position_sizes(
         strategy (str): Position sizing strategy
         
     Returns:
-        List[float]: Position sizes for each period
+        List[float]: Position sizes for each period (same length as returns)
     """
     position_sizes = []
     current_capital = initial_capital
     position = 0  # 0: no position, 1: long position
     
-    for i in range(len(prices)):
-        if i == 0:
-            position_sizes.append(0.0)
-            continue
-            
+    # Start from index 1 to match the returns calculation
+    for i in range(1, len(prices)):
         price = prices[i]
-        signal = signals[i-1] if i > 0 else 0
+        signal = signals[i-1]  # Use previous signal
         atr = atr_values[i] if i < len(atr_values) else atr_values[-1] if atr_values else 0.01
         
         # Update position based on signal
@@ -199,10 +196,9 @@ def calculate_position_sizes(
         position_sizes.append(position_size)
         
         # Update capital (simplified - in reality this would be more complex)
-        if i > 0:
-            price_return = (price - prices[i-1]) / prices[i-1]
-            if position == 1:
-                current_capital *= (1 + price_return)
+        price_return = (price - prices[i-1]) / prices[i-1]
+        if position == 1:
+            current_capital *= (1 + price_return)
     
     return position_sizes
 
