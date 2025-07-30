@@ -6,12 +6,14 @@ Showcases the enhanced feature engineering capabilities including:
 - Time-based features (hour, day encoding)
 - Fractional differentiation
 - Intraday data analysis
+- Parameter optimization integration
 """
 
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import argparse
 from src.data_pipeline import download_data, get_intraday_data, validate_data_quality
 from src.feature_engineering import (
     add_technical_indicators,
@@ -21,6 +23,8 @@ from src.feature_engineering import (
     simulate_bid_ask_spread,
     add_time_based_features
 )
+from src.parameter_optimization import ParameterOptimizer
+from src.visualization import plot_model_accuracy, plot_performance_metrics
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -172,6 +176,40 @@ def demonstrate_fractional_differentiation(data):
     return {d: fractional_differentiation(series, d=d) for d in d_values}
 
 
+def run_optimization_with_advanced_features(data, n_trials=20):
+    """Run parameter optimization with advanced features."""
+    print("\n🚀 PARAMETER OPTIMIZATION WITH ADVANCED FEATURES")
+    print("=" * 50)
+    
+    print(f"🔧 Running optimization with {n_trials} trials...")
+    optimizer = ParameterOptimizer(data, n_trials=n_trials)
+    optimization_results = optimizer.optimize()
+    
+    print(f"✅ Optimization completed!")
+    print(f"🏆 Best score: {optimization_results['best_score']:.4f}")
+    
+    # Get optimized results
+    results = optimizer.get_optimized_results()
+    strategy_metrics = results['strategy_metrics']
+    ml_score = results['ml_score']
+    
+    print(f"\n📊 Optimized Strategy Performance:")
+    print(f"   Sharpe Ratio: {strategy_metrics['sharpe_ratio']:.4f}")
+    print(f"   Max Drawdown: {strategy_metrics['max_drawdown']:.4f}")
+    print(f"   Total Return: {strategy_metrics['total_return']:.4f}")
+    print(f"   Win Rate: {strategy_metrics['win_rate']:.4f}")
+    print(f"🤖 ML Score: {ml_score:.4f}")
+    
+    # Show top optimized parameters
+    print(f"\n🏆 Top 10 Optimized Parameters:")
+    print("-" * 30)
+    sorted_params = sorted(optimization_results['best_params'].items(), key=lambda x: str(x[1]))[:10]
+    for key, value in sorted_params:
+        print(f"   {key}: {value}")
+    
+    return optimizer, results
+
+
 def plot_feature_comparison(data, vwap_features, ofi_features, spread_features):
     """Create visualization of the new features."""
     print("\n📈 Creating feature visualizations...")
@@ -219,8 +257,8 @@ def plot_feature_comparison(data, vwap_features, ofi_features, spread_features):
     axes[1, 1].grid(True, alpha=0.3)
     
     plt.tight_layout()
-    plt.savefig('advanced_features_analysis.png', dpi=300, bbox_inches='tight')
-    print("💾 Saved visualization as 'advanced_features_analysis.png'")
+    plt.savefig('output/advanced_features_analysis.png', dpi=300, bbox_inches='tight')
+    print("💾 Saved visualization as 'output/advanced_features_analysis.png'")
     plt.show()
 
 
@@ -267,6 +305,12 @@ def demonstrate_complete_feature_engineering(data):
 
 def main():
     """Main demonstration function."""
+    parser = argparse.ArgumentParser(description="Advanced Feature Engineering Demo with Parameter Optimization")
+    parser.add_argument("--optimize", action="store_true", help="Enable parameter optimization")
+    parser.add_argument("--n-trials", type=int, default=20, help="Number of optimization trials")
+    
+    args = parser.parse_args()
+    
     print("🧠 ADVANCED FEATURE ENGINEERING DEMO")
     print("=" * 60)
     print("This demo showcases enhanced feature engineering capabilities:")
@@ -274,6 +318,8 @@ def main():
     print("• Time-based features (hour, day encoding)")
     print("• Fractional differentiation for better stationarity")
     print("• Intraday data analysis")
+    if args.optimize:
+        print("• Parameter optimization integration")
     print("=" * 60)
     
     # Download or create sample data
@@ -294,6 +340,26 @@ def main():
     # Demonstrate complete pipeline
     enhanced_data = demonstrate_complete_feature_engineering(data)
     
+    # Run parameter optimization if enabled
+    if args.optimize:
+        optimizer, results = run_optimization_with_advanced_features(data, args.n_trials)
+        
+        # Generate optimization visualizations
+        if 'fold_scores' in results:
+            plot_model_accuracy(
+                results['fold_scores'],
+                "ML Model Accuracy - Advanced Features + Optimization",
+                "output/advanced_features_optimized_accuracy.png"
+            )
+            print("✅ Advanced features optimization accuracy visualization saved")
+        
+        if 'strategy_metrics' in results:
+            plot_performance_metrics(
+                results['strategy_metrics'],
+                "output/advanced_features_optimized_performance.png"
+            )
+            print("✅ Advanced features optimization performance visualization saved")
+    
     print("\n🎉 DEMONSTRATION COMPLETE!")
     print("=" * 60)
     print("Key improvements implemented:")
@@ -305,6 +371,9 @@ def main():
     print("✅ Advanced technical indicators (CCI, MFI, etc.)")
     print("✅ Price action patterns (Doji, Hammer)")
     print("✅ Comprehensive testing and validation")
+    if args.optimize:
+        print("✅ Parameter optimization successfully integrated")
+        print("✅ Advanced features + optimization pipeline demonstrated")
     print("=" * 60)
 
 

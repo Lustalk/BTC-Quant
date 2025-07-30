@@ -9,55 +9,38 @@ warnings.filterwarnings('ignore')
 
 def fractional_differentiation(series: pd.Series, d: float = 0.5, threshold: float = 1e-5) -> pd.Series:
     """
-    Apply fractional differentiation to make series stationary while preserving memory.
+    Apply fractional differentiation to a time series.
     
     Args:
-        series: Input time series
-        d: Differentiation order (0 < d < 1)
-        threshold: Threshold for stopping the expansion
+        series (pd.Series): Input time series
+        d (float): Differentiation order (0 < d < 1)
+        threshold (float): Threshold for dropping small weights
         
     Returns:
-        Fractionally differentiated series
+        pd.Series: Fractionally differentiated series
     """
-    if d >= 1:
-        raise ValueError("d must be less than 1 for fractional differentiation")
+    if d <= 0 or d >= 1:
+        raise ValueError("d must be between 0 and 1")
     
-    if len(series) < 10:
-        # For very short series, return a simple difference
-        return series.diff().dropna()
-    
-    weights = [1.0]
-    k = 1
-    while True:
-        weight = -weights[-1] * (d - k + 1) / k
-        if abs(weight) < threshold:
-            break
-        weights.append(weight)
-        k += 1
-    
-    weights = np.array(weights[::-1])
-    
-    # Apply convolution
-    res = np.convolve(series, weights, mode='valid')
-    
-    # Create index for the result
-    # The result starts from index len(weights)-1
-    start_idx = len(weights) - 1
-    if start_idx >= len(series):
-        # If series is too short, return simple difference
-        return series.diff().dropna()
-    
-    result_index = series.index[start_idx:]
-    
-    # Ensure result length matches index length
-    if len(res) > len(result_index):
-        res = res[:len(result_index)]
-    elif len(res) < len(result_index):
-        # Pad with NaN if needed
-        padding = len(result_index) - len(res)
-        res = np.concatenate([res, np.full(padding, np.nan)])
-    
-    return pd.Series(res, index=result_index)
+    try:
+        # Calculate weights
+        weights = [1.0]
+        for k in range(1, len(series)):
+            weight = -weights[-1] * (d - k + 1) / k
+            if abs(weight) < threshold:
+                break
+            weights.append(weight)
+        
+        # Apply fractional differentiation
+        result = pd.Series(index=series.index, dtype=float)
+        for i in range(len(weights), len(series)):
+            result.iloc[i] = sum(weights[j] * series.iloc[i-j] for j in range(len(weights)))
+        
+        return result.dropna()
+        
+    except Exception as e:
+        # Return original series if differentiation fails
+        return series
 
 
 def calculate_vwap_enhanced(df: pd.DataFrame, window: int = 20) -> pd.Series:

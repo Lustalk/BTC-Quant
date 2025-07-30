@@ -326,38 +326,45 @@ def generate_performance_report(
     return "\n".join(report)
 
 
-def print_performance_table(metrics: Dict[str, float]) -> None:
+def print_performance_table(metrics: Dict[str, float]) -> str:
     """
-    Print a formatted performance metrics table.
-
+    Format performance metrics into a readable table.
+    
     Args:
         metrics (Dict[str, float]): Performance metrics
+        
+    Returns:
+        str: Formatted performance table
     """
-    print("=" * 60)
-    print("PERFORMANCE METRICS")
-    print("=" * 60)
-
-    # Define the metrics to display and their labels
-    metric_labels = {
-        "sharpe_ratio": "Sharpe Ratio",
-        "max_drawdown": "Max Drawdown",
-        "volatility": "Volatility",
-        "win_rate": "Win Rate",
-        "profit_factor": "Profit Factor",
-        "total_return": "Total Return",
-        "avg_return": "Average Return",
+    table_lines = []
+    table_lines.append("=" * 60)
+    table_lines.append("PERFORMANCE METRICS")
+    table_lines.append("=" * 60)
+    
+    # Group metrics by category
+    metric_categories = {
+        'Returns': ['total_return', 'avg_return', 'annualized_return'],
+        'Risk': ['volatility', 'max_drawdown', 'var_95'],
+        'Ratios': ['sharpe_ratio', 'sortino_ratio', 'calmar_ratio'],
+        'Trading': ['win_rate', 'profit_factor', 'avg_win', 'avg_loss'],
+        'Model': ['auc', 'precision', 'recall', 'f1_score']
     }
-
-    # Print each metric
-    for key, label in metric_labels.items():
-        if key in metrics:
-            value = metrics[key]
-            if key in ["win_rate", "max_drawdown"]:
-                print(f"{label:<20}: {value:.4f}")
-            else:
-                print(f"{label:<20}: {value:.4f}")
-
-    if "auc" in metrics:
-        print(f"{'AUC':<20}: {metrics['auc']:.4f}")
-
-    print("=" * 60)
+    
+    for category, metric_names in metric_categories.items():
+        table_lines.append(f"\n{category.upper()} METRICS:")
+        table_lines.append("-" * 30)
+        
+        for metric_name in metric_names:
+            if metric_name in metrics:
+                value = metrics[metric_name]
+                if isinstance(value, float):
+                    if 'ratio' in metric_name.lower() or 'rate' in metric_name.lower():
+                        table_lines.append(f"{metric_name:<20}: {value:.4f}")
+                    else:
+                        table_lines.append(f"{metric_name:<20}: {value:.4f}")
+                else:
+                    table_lines.append(f"{metric_name:<20}: {value}")
+    
+    table_lines.append("=" * 60)
+    
+    return "\n".join(table_lines)

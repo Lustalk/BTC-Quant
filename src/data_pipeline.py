@@ -15,7 +15,7 @@ def download_data(ticker: str, start_date: str, end_date: str,
         start_date (str): Start date in YYYY-MM-DD format
         end_date (str): End date in YYYY-MM-DD format
         interval (str): Data interval ('1m', '2m', '5m', '15m', '30m', '60m', '90m', '1h', '1d', '5d', '1wk', '1mo', '3mo')
-        data_source (str): Data source ('yfinance', 'alpha_vantage', 'polygon')
+        data_source (str): Data source ('yfinance')
         
     Returns:
         pd.DataFrame: Raw financial data with OHLCV columns
@@ -23,12 +23,8 @@ def download_data(ticker: str, start_date: str, end_date: str,
     try:
         if data_source.lower() == "yfinance":
             return _download_yfinance_data(ticker, start_date, end_date, interval)
-        elif data_source.lower() == "alpha_vantage":
-            return _download_alpha_vantage_data(ticker, start_date, end_date, interval)
-        elif data_source.lower() == "polygon":
-            return _download_polygon_data(ticker, start_date, end_date, interval)
         else:
-            raise ValueError(f"Unsupported data source: {data_source}")
+            raise ValueError(f"Unsupported data source: {data_source}. Use 'yfinance' for now.")
             
     except Exception as e:
         raise RuntimeError(f"Failed to download data for {ticker}: {str(e)}")
@@ -61,44 +57,6 @@ def _download_yfinance_data(ticker: str, start_date: str, end_date: str,
         raise ValueError(f"No data found for ticker {ticker} in the specified date range")
     
     return data
-
-
-def _download_alpha_vantage_data(ticker: str, start_date: str, end_date: str, 
-                                interval: str = "1d") -> pd.DataFrame:
-    """
-    Download data using Alpha Vantage API (placeholder for future implementation).
-    
-    Args:
-        ticker (str): Stock ticker symbol
-        start_date (str): Start date
-        end_date (str): End date
-        interval (str): Data interval
-        
-    Returns:
-        pd.DataFrame: Financial data
-    """
-    # Placeholder for Alpha Vantage implementation
-    # This would require API key and proper implementation
-    raise NotImplementedError("Alpha Vantage data source not yet implemented. Use 'yfinance' for now.")
-
-
-def _download_polygon_data(ticker: str, start_date: str, end_date: str, 
-                          interval: str = "1d") -> pd.DataFrame:
-    """
-    Download data using Polygon API (placeholder for future implementation).
-    
-    Args:
-        ticker (str): Stock ticker symbol
-        start_date (str): Start date
-        end_date (str): End date
-        interval (str): Data interval
-        
-    Returns:
-        pd.DataFrame: Financial data
-    """
-    # Placeholder for Polygon implementation
-    # This would require API key and proper implementation
-    raise NotImplementedError("Polygon data source not yet implemented. Use 'yfinance' for now.")
 
 
 def get_intraday_data(ticker: str, start_date: str, end_date: str, 

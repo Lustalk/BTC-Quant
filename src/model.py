@@ -52,37 +52,42 @@ def train_model(X_train: pd.DataFrame, y_train: pd.Series) -> xgb.XGBClassifier:
     return model
 
 
-def walk_forward_validation(X: pd.DataFrame, y: pd.Series, n_splits: int = 5) -> List[float]:
+def walk_forward_validation(X: np.ndarray, y: np.ndarray, n_splits: int = 5) -> List[float]:
     """
-    Perform walk-forward validation on time series data.
-
+    Perform walk-forward validation for time series data.
+    
     Args:
-        X (pd.DataFrame): Features
-        y (pd.Series): Targets
-        n_splits (int): Number of splits for time series cross-validation
-
+        X (np.ndarray): Feature matrix
+        y (np.ndarray): Target vector
+        n_splits (int): Number of splits for validation
+        
     Returns:
         List[float]: List of accuracy scores for each fold
     """
+    if len(X) != len(y):
+        raise ValueError("X and y must have the same length")
+    
     tscv = TimeSeriesSplit(n_splits=n_splits)
     scores = []
-
+    
     for fold, (train_idx, test_idx) in enumerate(tscv.split(X), 1):
-        print(f"Processing fold {fold}/{n_splits}...")
-
-        X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
-        y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
-
+        X_train, X_test = X[train_idx], X[test_idx]
+        y_train, y_test = y[train_idx], y[test_idx]
+        
         # Train model
-        model = train_model(X_train, y_train)
-
-        # Make predictions
+        model = xgb.XGBClassifier(
+            n_estimators=100,
+            learning_rate=0.1,
+            max_depth=6,
+            random_state=42,
+            eval_metric='logloss'
+        )
+        
+        model.fit(X_train, y_train)
+        
+        # Predict and calculate accuracy
         y_pred = model.predict(X_test)
-
-        # Calculate accuracy
         accuracy = accuracy_score(y_test, y_pred)
         scores.append(accuracy)
-
-        print(f"Fold {fold} accuracy: {accuracy:.4f}")
-
+    
     return scores
