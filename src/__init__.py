@@ -11,13 +11,10 @@ from .feature_engineering import FeatureEngineer
 from .validation import WalkForwardValidator
 from .modeling import XGBoostModel
 from .evaluation import PerformanceEvaluator
-from .professional_visualizations import ProfessionalVisualizer
-
 __all__ = [
     "DataPipeline",
     "FeatureEngineer",
     "WalkForwardValidator",
     "XGBoostModel",
     "PerformanceEvaluator",
-    "ProfessionalVisualizer",
 ]

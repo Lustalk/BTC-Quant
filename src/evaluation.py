@@ -54,9 +54,16 @@ class PerformanceEvaluator:
         # Create signals based on probability threshold
         signals = (np.array(probabilities) > threshold).astype(int)
 
+        # Align data with predictions length
+        if len(signals) != len(data):
+            # Use only the data that corresponds to predictions
+            data_subset = data.iloc[:len(signals)]
+        else:
+            data_subset = data
+
         # Calculate forward returns (5-day horizon)
         forward_returns = (
-            data["close"].shift(-DATA_CONFIG["target_horizon"]) / data["close"] - 1
+            data_subset["close"].shift(-DATA_CONFIG["target_horizon"]) / data_subset["close"] - 1
         )
 
         # Strategy returns: long when signal=1, cash when signal=0
@@ -249,6 +256,76 @@ class PerformanceEvaluator:
         logger.info(f"Alpha: {alpha:.3f}")
 
         return results
+
+    def _analyze_predictive_power(self, predictions, probabilities, data):
+        """
+        Analyze predictive power of the model
+        """
+        logger.info("Analyzing predictive power...")
+        
+        # Align predictions with data
+        target_subset = data['target'].iloc[:len(predictions)].values
+        
+        # Calculate basic metrics
+        accuracy = np.mean(predictions == target_subset)
+        
+        # Calculate AUC if we have probabilities
+        if len(probabilities) > 0:
+            from sklearn.metrics import roc_auc_score
+            try:
+                auc = roc_auc_score(target_subset, probabilities)
+            except:
+                auc = 0.5
+        else:
+            auc = 0.5
+        
+        return {
+            "accuracy": accuracy,
+            "auc": auc,
+            "has_predictive_power": auc > 0.5
+        }
+
+    def _analyze_financial_performance(self, strategy_metrics, benchmark_metrics, strategy_returns, benchmark_returns):
+        """
+        Analyze financial performance vs benchmark
+        """
+        logger.info("Analyzing financial performance...")
+        
+        # Calculate excess performance
+        excess_sharpe = strategy_metrics.get("sharpe_ratio", 0) - benchmark_metrics.get("sharpe_ratio", 0)
+        excess_return = strategy_metrics.get("annualized_return", 0) - benchmark_metrics.get("annualized_return", 0)
+        
+        # Determine if strategy outperforms
+        outperforms = (
+            strategy_metrics.get("sharpe_ratio", 0) > benchmark_metrics.get("sharpe_ratio", 0) and
+            excess_sharpe > 0.1
+        )
+        
+        return {
+            "excess_sharpe": excess_sharpe,
+            "excess_return": excess_return,
+            "outperforms_benchmark": outperforms
+        }
+
+    def _analyze_robustness(self, strategy_returns, benchmark_returns, probabilities):
+        """
+        Analyze robustness of results
+        """
+        logger.info("Analyzing robustness...")
+        
+        # Calculate correlation with benchmark
+        correlation = strategy_returns.corr(benchmark_returns)
+        
+        # Calculate hit rate
+        positive_days = (strategy_returns > 0).sum()
+        total_days = len(strategy_returns)
+        hit_rate = positive_days / total_days if total_days > 0 else 0
+        
+        return {
+            "correlation_with_benchmark": correlation,
+            "hit_rate": hit_rate,
+            "is_robust": hit_rate > 0.5 and correlation < 0.8
+        }
 
     def plot_cumulative_returns(self, save_path: str = None):
         """

@@ -1,0 +1,11 @@
+BTC Quant Strategy Validation Results
+==================================================
+
+Strategy Sharpe Ratio: 4.4689
+Buy & Hold Sharpe Ratio: 0.8417
+Improvement: 3.6272
+
+Transaction Cost Analysis:
+  Cost 0.0001: 468.0 trades, Net Sharpe: 4.4433
+  Cost 0.0005: 468.0 trades, Net Sharpe: 4.3412
+  Cost 0.001: 468.0 trades, Net Sharpe: 4.2135
