@@ -1,0 +1,68 @@
+# BTC Quant Configuration
+# This file contains all configurable parameters for the trading system
+
+# Data Configuration
+data:
+  default_ticker: "BTC-USD"
+  default_start_date: "2023-01-01"
+  default_end_date: "2024-01-01"
+  data_source: "yfinance"
+
+# Model Configuration
+model:
+  algorithm: "XGBoost"
+  random_state: 42
+  eval_metric: "logloss"
+  default_n_splits: 5
+  target_lookahead: 1
+
+# Feature Engineering
+features:
+  technical_indicators:
+    - "SMA"
+    - "EMA"
+    - "RSI"
+    - "MACD"
+    - "Bollinger_Bands"
+    - "Stochastic"
+    - "Williams_R"
+    - "ATR"
+    - "OBV"
+    - "VWAP"
+  
+  # Rolling window periods
+  rolling_windows: [5, 10, 20, 50]
+  
+  # Price-based features
+  price_features:
+    - "returns"
+    - "log_returns"
+    - "price_ratios"
+    - "lagged_features"
+
+# Evaluation Metrics
+evaluation:
+  risk_free_rate: 0.02
+  required_metrics:
+    - "sharpe_ratio"
+    - "max_drawdown"
+    - "volatility"
+    - "win_rate"
+    - "profit_factor"
+    - "auc"
+
+# Trading Strategy
+strategy:
+  default_signal_threshold: 0.5
+  position_sizing: "equal_weight"
+  risk_management:
+    stop_loss: null
+    take_profit: null
+    max_position_size: null
+
+# Performance Thresholds
+thresholds:
+  minimum_accuracy: 0.50
+  minimum_sharpe: 0.30
+  maximum_drawdown: 0.20
+  minimum_auc: 0.55 
