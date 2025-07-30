@@ -74,6 +74,11 @@ def test_documentation_tools():
 
 def test_code_quality_tools():
     """Test that code quality tools can be imported."""
+    import warnings
+    
+    # Suppress the ast.Str deprecation warning
+    warnings.filterwarnings("ignore", category=DeprecationWarning, message="ast.Str is deprecated")
+    
     quality_modules = ["pre_commit", "bandit"]
 
     for module in quality_modules:

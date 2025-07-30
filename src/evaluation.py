@@ -63,16 +63,16 @@ def calculate_sortino_ratio(returns: List[float], risk_free_rate: float = 0.02) 
 
     # Calculate downside deviation (only negative returns)
     negative_returns = excess_returns[excess_returns < 0]
-    
+
     if len(negative_returns) == 0:
         # If no negative returns, Sortino ratio is infinite (perfect)
         return 10.0  # Cap at reasonable value
-    
+
     downside_deviation = np.sqrt(np.mean(negative_returns ** 2))
-    
+
     if downside_deviation == 0:
         return 0.0
-    
+
     sortino = np.mean(excess_returns) / downside_deviation
     return sortino * np.sqrt(252)  # Annualized
 

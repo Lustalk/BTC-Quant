@@ -21,11 +21,11 @@ from .strategy_analysis import analyze_strategy_performance
 
 class ParameterOptimizer:
     """Smart parameter optimizer for trading system."""
-    
+
     def __init__(self, data: pd.DataFrame, n_trials: int = 100):
         """
         Initialize the parameter optimizer.
-        
+
         Args:
             data: Raw OHLCV data
             n_trials: Number of optimization trials
@@ -34,67 +34,67 @@ class ParameterOptimizer:
         self.n_trials = n_trials
         self.best_params = None
         self.best_score = -np.inf
-        
+
     def create_indicators_with_params(self, params: Dict[str, Any]) -> pd.DataFrame:
         """
         Create technical indicators with given parameters.
-        
+
         Args:
             params: Dictionary of indicator parameters
-            
+
         Returns:
             DataFrame with indicators
         """
         df = self.data.copy()
-        
+
         # Trend Indicators with variable parameters
         df[f"SMA_{params['sma_short']}"] = ta.trend.sma_indicator(df["Close"], window=params['sma_short'])
         df[f"SMA_{params['sma_long']}"] = ta.trend.sma_indicator(df["Close"], window=params['sma_long'])
         df[f"EMA_{params['ema_short']}"] = ta.trend.ema_indicator(df["Close"], window=params['ema_short'])
         df[f"EMA_{params['ema_long']}"] = ta.trend.ema_indicator(df["Close"], window=params['ema_long'])
-        
+
         # MACD with variable parameters
-        df["MACD"] = ta.trend.macd(df["Close"], window_fast=params['macd_fast'], 
+        df["MACD"] = ta.trend.macd(df["Close"], window_fast=params['macd_fast'],
                                    window_slow=params['macd_slow'])
         df["MACD_Signal"] = ta.trend.macd_signal(df["Close"], window_fast=params['macd_fast'],
                                                  window_slow=params['macd_slow'])
         df["MACD_Histogram"] = ta.trend.macd_diff(df["Close"], window_fast=params['macd_fast'],
                                                   window_slow=params['macd_slow'])
-        
+
         # Momentum Indicators
         df[f"RSI_{params['rsi_window']}"] = ta.momentum.rsi(df["Close"], window=params['rsi_window'])
         df["Stoch_K"] = ta.momentum.stoch(df["High"], df["Low"], df["Close"], window=params['stoch_window'])
         df["Stoch_D"] = ta.momentum.stoch_signal(df["High"], df["Low"], df["Close"], window=params['stoch_window'])
         df["Williams_R"] = ta.momentum.williams_r(df["High"], df["Low"], df["Close"], lbp=params['williams_window'])
-        
+
         # Volatility Indicators
         df["BB_Upper"] = ta.volatility.bollinger_hband(df["Close"], window=params['bb_window'])
         df["BB_Lower"] = ta.volatility.bollinger_lband(df["Close"], window=params['bb_window'])
         df["BB_Middle"] = ta.volatility.bollinger_mavg(df["Close"], window=params['bb_window'])
         df["BB_Width"] = ta.volatility.bollinger_wband(df["Close"], window=params['bb_window'])
         df["ATR"] = ta.volatility.average_true_range(df["High"], df["Low"], df["Close"], window=params['atr_window'])
-        
+
         # Volume Indicators
         df["OBV"] = ta.volume.on_balance_volume(df["Close"], df["Volume"])
         df["VWAP"] = ta.volume.volume_weighted_average_price(df["High"], df["Low"], df["Close"], df["Volume"])
-        
+
         # Price-based features
         df["Returns"] = df["Close"].pct_change()
         df["Log_Returns"] = np.log(df["Close"] / df["Close"].shift(1))
         df["High_Low_Ratio"] = df["High"] / df["Low"]
         df["Close_Open_Ratio"] = df["Close"] / df["Open"]
-        
+
         # Lagged features with variable lags
         for lag in [params['lag_1'], params['lag_2'], params['lag_3']]:
             df[f"Close_Lag_{lag}"] = df["Close"].shift(lag)
             df[f"Volume_Lag_{lag}"] = df["Volume"].shift(lag)
-        
+
         # Rolling statistics with variable windows
         for window in [params['roll_short'], params['roll_medium'], params['roll_long']]:
             df[f"Close_Std_{window}"] = df["Close"].rolling(window=window).std()
             df[f"Volume_Mean_{window}"] = df["Volume"].rolling(window=window).mean()
             df[f"Returns_Mean_{window}"] = df["Returns"].rolling(window=window).mean()
-        
+
         return df.dropna()
     
     def generate_signals_with_tp_sl(self, df: pd.DataFrame, params: Dict[str, Any]) -> Tuple[List[int], List[float]]:
@@ -268,9 +268,9 @@ class ParameterOptimizer:
                     return -500
                 
                 # Combined score with Sortino ratio as primary metric
-                strategy_score = (0.6 * sortino_ratio + 
-                                0.2 * sharpe_ratio + 
-                                0.1 * total_return + 
+                strategy_score = (0.6 * sortino_ratio +
+                                0.2 * sharpe_ratio +
+                                0.1 * total_return +
                                 0.1 * win_rate)
                 
                 combined_score = (0.7 * strategy_score + 0.3 * ml_score)
@@ -325,7 +325,7 @@ class ParameterOptimizer:
                 scores.append(f1)
             
             return np.mean(scores)
-        except:
+        except Exception:
             return 0.0
     
     def optimize(self) -> Dict[str, Any]:
@@ -383,4 +383,6 @@ class ParameterOptimizer:
             'signals': signals,
             'entry_prices': entry_prices,
             'optimized_data': df_optimized
-        } 
+        }
+ 
+ 
