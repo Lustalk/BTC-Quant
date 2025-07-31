@@ -37,14 +37,29 @@ docker-compose up
 ### **🚀 Demo Modes**
 
 ```bash
-# Run the professional demo
+# Run the professional demo (basic pipeline)
 python demo.py
+
+# Run demo with parameter optimization
+python demo.py --optimize --n-trials 50
+
+# Compare basic vs optimized performance
+python demo.py --compare --n-trials 50
 
 # Run ML optimization demo
 python optimization_demo.py
 
+# Run advanced feature engineering demo
+python demo_advanced_features.py
+
+# Run advanced features with optimization
+python demo_advanced_features.py --optimize --n-trials 50
+
 # Run main application with ML optimization
 python main.py --optimize --n-trials 50
+
+# Run main application with performance comparison
+python main.py --optimize --compare --n-trials 50
 ```
 
 ## 📁 **Project Architecture**
@@ -74,6 +89,8 @@ BTC Buy&Hold/
 ## ✅ **Professional Features**
 
 ### **🔧 Engineering Excellence**
+- **Real-time ML Integration**: Model accuracy visualizations now use actual optimization results
+- **Data Flow Optimization**: Seamless integration between ML optimization and visualization modules
 - **Clean Architecture**: Modular design with clear separation of concerns
 - **Comprehensive Testing**: 89% test coverage with 46 test cases
 - **Code Quality**: Professional code structure with PEP 8 compliance
@@ -85,147 +102,329 @@ BTC Buy&Hold/
 - **25+ Optimized Parameters**: Technical indicators, TP/SL, ML hyperparameters
 - **Multi-Objective Scoring**: Combines strategy performance + ML accuracy
 - **Production-Ready Pipeline**: Professional optimization workflow
+- **Comprehensive Integration**: Parameter optimization used across all demo modules
+- **Performance Comparison**: Side-by-side basic vs optimized strategy analysis
 
-### **📈 Trading System Capabilities**
-- **Data Pipeline**: Robust financial data acquisition
-- **Feature Engineering**: 34 technical indicators (trend, momentum, volatility)
-- **ML Pipeline**: XGBoost with walk-forward validation
-- **Performance Analysis**: Sharpe ratio, drawdown, AUC metrics
-- **Strategy Backtesting**: Complete trading strategy evaluation
+### **💰 Advanced Trading Features**
+- **Transaction Cost Modeling**: Realistic fees and slippage simulation
+- **Dynamic Position Sizing**: Volatility-targeted and risk-based strategies
+- **Sophisticated Risk Management**: Kelly criterion and dynamic risk adjustment
+- **Calmar Ratio Optimization**: Focus on downside risk management
+- **Portfolio Risk Metrics**: Position concentration and volatility analysis
+
+## 🚀 **Parameter Optimization Integration**
+
+The system now ensures that `parameter_optimization.py` is the central engine driving optimization across all modules:
+
+### **Enhanced Demo Scripts**
+- **demo.py**: Now includes `--optimize` and `--compare` flags
+- **demo_advanced_features.py**: Integrated parameter optimization with advanced features
+- **main.py**: Enhanced with detailed optimization summaries and performance comparisons
+
+### **Comprehensive Output Generation**
+All modules using parameter optimization now generate consistent outputs:
+- **Model Accuracy Visualizations**: Using actual optimization results
+- **Performance Metrics**: Detailed strategy performance analysis
+- **Parameter Reports**: Categorized optimization results
+- **Comparison Analysis**: Basic vs optimized performance metrics
+
+### **Usage Examples**
+
+```bash
+# Basic demo with optimization
+python demo.py --optimize --n-trials 50
+
+# Compare basic vs optimized performance
+python demo.py --compare --n-trials 50
+
+# Advanced features with optimization
+python demo_advanced_features.py --optimize --n-trials 50
+
+# Main application with detailed optimization
+python main.py --optimize --compare --n-trials 50
+```
+
+### **Output Files Generated**
+- `output/model_accuracy_optimized.png` - ML model accuracy with optimized parameters
+- `output/performance_metrics_optimized.png` - Strategy performance visualization
+- `output/optimized_strategy.png` - Price and signals visualization
+- `output/advanced_features_optimized_accuracy.png` - Advanced features + optimization
+- `output/advanced_features_optimized_performance.png` - Advanced features performance
 
 ## 📊 **Performance Results**
 
-### **🚀 ML Optimized Performance**
+### **🤖 ML Optimization Results**
 
-| Metric | Baseline | Optimized | Improvement |
-|--------|----------|-----------|-------------|
-| **Sharpe Ratio** | 1.73 | 3.05 | +76% |
-| **Total Return** | 42.6% | 65.69% | +54% |
-| **Win Rate** | 11.11% | 35.75% | +222% |
-| **Model Accuracy** | 0.51 | 0.56 | +10% |
-
-### **📈 Baseline Performance**
-
-| Metric | Value | Industry Context |
-|--------|-------|------------------|
-| **Model Accuracy** | 0.48-0.51 | Realistic for financial prediction |
-| **Sharpe Ratio** | 1.73 | Strong risk-adjusted returns |
-| **Max Drawdown** | 0.0925 | 9.25% maximum loss |
-| **Win Rate** | 0.1111 | 11.11% profitable trades |
-| **Profit Factor** | 2.33 | Good risk-reward ratio |
-| **Total Return** | 0.426 | 42.6% over test period |
-
-> **Note**: ML optimization significantly improves performance while maintaining realistic expectations. The system demonstrates professional quantitative trading with intelligent parameter optimization.
-
-## 🎯 **Usage Options**
-
-### **Default Mode (Baseline Strategy)**
 ```bash
-python main.py
+============================================================
+🚀 BTC Quant - ML Optimization Demo
+============================================================
+📅 Date: 2025-07-30 19:57:11
+🐍 Python: 3.13.4
+============================================================
+
+[1/5] 🔧 Data Acquisition
+----------------------------------------
+   ✅ Downloaded 365 data points in 0.34s
+   📊 Data range: 2023-01-01 to 2023-12-31
+
+[2/5] 🔧 Optimizer Setup
+----------------------------------------
+   ✅ Optimizer initialized with 50 trials
+   🎯 Target: Optimize technical indicators + ML parameters
+
+[3/5] 🔧 ML Optimization
+----------------------------------------
+Starting optimization with 50 trials...
+   ✅ Optimization completed in 17.82s
+   🏆 Best score: -200.0000
+
+[4/5] 🔧 Results Analysis
+----------------------------------------
+   📊 Strategy Performance:
+      Sharpe Ratio: 2.0197
+      Max Drawdown: 0.1155
+      Total Return: 0.3077
+      Win Rate: 0.2529
+   🤖 ML Score: 0.4613
+
+[5/5] 🔧 Visualization
+----------------------------------------
+   ✅ Strategy visualization saved
+   ✅ Performance metrics saved
+
+🏆 Best Parameters Found:
+------------------------------
+   sma_short: 20
+   sma_long: 191
+   ema_short: 23
+   ema_long: 64
+   rsi_window: 12
+   rsi_oversold: 19
+   rsi_overbought: 56
+   stoch_window: 27
+   williams_window: 20
+   bb_window: 37
+   atr_window: 5
+   macd_fast: 25
+   macd_slow: 44
+   lag_1: 3
+   lag_2: 4
+   lag_3: 6
+   roll_short: 6
+   roll_medium: 18
+   roll_long: 49
+   take_profit: 0.06533353663762796
+   stop_loss: 0.06312602499862605
+   fee_type: taker
+   risk_per_trade: 0.02465447373174767
+   position_sizing_strategy: risk_based
+   target_volatility: 0.17713516576204175
+   stop_loss_pct: 0.0336965827544817
+   learning_rate: 0.024178755947278866
+   max_depth: 10
+   n_estimators: 106
+   subsample: 0.5325257964926398
+   colsample_bytree: 0.9744427686266666
+
+============================================================
+🎉 Optimization Demo Completed Successfully!
+============================================================
+⏱️  Total time: 19.42s
+📊 Best strategy score: -200.0000
+📈 Total return: 30.77%
+🎯 ML accuracy: 0.4613
+============================================================
 ```
 
-### **ML Optimization Mode**
+### **📊 Performance Comparison Results**
+
 ```bash
-# Quick optimization (20 trials)
-python main.py --optimize --n-trials 20
+============================================================
+📊 COMPARISON: Basic vs Optimized Pipeline
+============================================================
+🤖 Model Accuracy:
+   Basic Pipeline: 0.4810
+   Optimized Pipeline: 0.5194
+   Improvement: +7.98%
 
-# Comprehensive optimization (50 trials)
-python main.py --optimize --n-trials 50
-
-# Extensive optimization (100 trials)
-python main.py --optimize --n-trials 100
+💰 Strategy Performance:
+   Basic Pipeline Return: 42.60%
+   Optimized Pipeline Return: 30.77%
+   Improvement: -27.76%
+   Basic Sharpe Ratio: 1.7302
+   Optimized Sharpe Ratio: 2.0197
+   Improvement: +16.73%
+============================================================
 ```
 
-### **Optimization Demo**
+### **📊 Comprehensive Backtesting Results**
+
 ```bash
-# Run comprehensive optimization showcase
-python optimization_demo.py
+BTC Quant Backtesting Engine
+Ticker: BTC-USD
+Date Range: 2023-01-01 to 2024-01-01
+Validation Splits: 5
+ML Optimization: Enabled (20 trials)
+
+Step 1: Downloading financial data...
+Downloaded 365 data points
+
+Step 2: Running ML optimization...
+Starting optimization with 20 trials...
+Optimization completed. Best score: -200.0000
+Optimized dataset shape: (175, 44)
+
+Step 3: Preparing features and target...
+Features shape: (175, 39), Target shape: (175,)
+
+Step 4: Running walk-forward validation...
+Processing fold 1/5...
+Fold 1 accuracy: 0.4828
+Processing fold 2/5...
+Fold 2 accuracy: 0.4138
+Processing fold 3/5...
+Fold 3 accuracy: 0.4138
+Processing fold 4/5...
+Fold 4 accuracy: 0.5172
+Processing fold 5/5...
+Fold 5 accuracy: 0.5862
+
+==================================================
+PERFORMANCE EVALUATION
+==================================================
+Model Performance:
+  Average Accuracy: 0.4828
+  Best Fold: 0.5862
+  Worst Fold: 0.4138
+  Individual Folds: ['0.4828', '0.4138', '0.4138', '0.5172', '0.5862']
+
+Optimized Strategy Performance:
+============================================================
+PERFORMANCE METRICS
+============================================================
+Sharpe Ratio        : 0.2836
+Max Drawdown        : 0.0188
+Volatility          : 0.3173
+Win Rate            : 0.3678
+Profit Factor       : 1.0789
+Total Return        : 0.0760
+Average Return      : 0.0004
+============================================================
+
+Transaction Cost Analysis:
+  Total Fees: $263.96
+  Total Slippage: $2199.70
+  Total Costs: $2463.67
+  Cost Impact: 0.2464
+  Return Degradation: 87.55%
+
+Trading Statistics:
+  Total Trades: 45
+  Avg Trade Duration: 1.7 days
 ```
 
-## 🚨 **Honest Limitations**
+## 🧪 **Testing & Quality Assurance**
 
-This project demonstrates **professional software engineering** with realistic ML optimization:
-
-- **Modest Predictive Edge**: 0.48-0.56 accuracy indicates realistic financial prediction
-- **No Transaction Costs**: Results don't account for trading fees
-- **Optimization Overfitting**: Risk of overfitting to historical data
-- **Simple Strategy**: Basic RSI signals, no advanced position sizing
-- **Limited Data**: 1 year of data, may not capture all market regimes
-
-## 🧪 **Quality Assurance**
-
-### **Automated Testing**
+### **Comprehensive Test Suite**
 ```bash
-# Run full test suite
-python -m pytest tests/ -v
+# Run all tests
+pytest tests/ -v
 
-# Check code quality
-python -m flake8 src/ tests/
+# Run with coverage
+pytest tests/ --cov=src --cov-report=html
 
-# Verify coverage (89%)
-python -m pytest tests/ --cov=src --cov-report=term-missing
+# Run specific test modules
+pytest tests/test_parameter_optimization.py -v
+pytest tests/test_integration.py -v
 ```
 
-### **CI/CD Pipeline**
-- ✅ **Automated Testing**: Runs on every commit
-- ✅ **Code Quality**: Professional code structure maintained
-- ✅ **Coverage Tracking**: 89% test coverage maintained
-- ✅ **Containerized**: Consistent environment across platforms
+### **Code Quality Checks**
+```bash
+# Linting
+flake8 src/ tests/
 
-## 🎯 **Why This Project Stands Out**
+# Type checking
+mypy src/
 
-### **For Recruiters:**
-- **Production-Ready Code**: Clean, tested, documented
-- **Professional Practices**: CI/CD, testing, configuration management
-- **ML Optimization**: Advanced hyperparameter tuning with Optuna
-- **Honest Communication**: Realistic results and limitations
-- **Complete Pipeline**: End-to-end ML system implementation
+# Security scanning
+bandit -r src/
+```
 
-### **For Technical Review:**
-- **Modular Architecture**: Clear separation of concerns
-- **Comprehensive Testing**: 46 tests covering all modules
-- **ML Optimization**: Professional parameter optimization pipeline
-- **Code Quality**: Professional structure with proper formatting
-- **Documentation**: Clear README with accurate information
+## 🐳 **Docker Deployment**
 
-## 📈 **Development Roadmap**
+### **Quick Start with Docker**
+```bash
+# Build and run with Docker Compose
+docker-compose up --build
 
-### **✅ Completed Features**
-- [x] Add performance visualization charts
-- [x] Comprehensive test suite (46 tests)
-- [x] Professional code quality standards
-- [x] Docker containerization
-- [x] CI/CD pipeline configuration
-- [x] **ML Optimization Engine**: Optuna-based hyperparameter optimization
-- [x] **Intelligent Parameter Search**: 25+ optimized parameters
-- [x] **Performance Improvements**: 76% better Sharpe ratio
+# Run individual services
+docker-compose up data-pipeline
+docker-compose up ml-optimization
+docker-compose up backtesting
+```
 
-### **Immediate Improvements** (Low Effort)
-- [ ] Implement more sophisticated trading strategies
-- [ ] Add transaction cost modeling
-- [ ] Include more technical indicators
-- [ ] Add portfolio-level risk management
+### **Production Deployment**
+```bash
+# Build production image
+docker build -t btc-quant:latest .
 
-### **Future Enhancements** (Medium Effort)
-- [ ] Real-time data streaming
-- [ ] Multiple asset support
-- [ ] Web dashboard interface
-- [ ] Advanced ML models (LSTM, Transformer)
+# Run with production settings
+docker run -d --name btc-quant \
+  -e OPTIMIZATION_TRIALS=100 \
+  -e DATA_SOURCE=yfinance \
+  btc-quant:latest
+```
+
+## 📈 **Advanced Features**
+
+### **🔬 Microstructure Analysis**
+- **Enhanced VWAP**: Volume-weighted average price with deviation metrics
+- **Order Flow Imbalance**: Simulated order flow analysis
+- **Bid-Ask Spread**: Dynamic spread modeling based on volatility
+
+### **⏰ Time-Based Features**
+- **Hourly Patterns**: Intraday volatility analysis
+- **Day-of-Week Effects**: Weekly trading patterns
+- **Market Hours**: Extended vs regular hours analysis
+
+### **🔢 Fractional Differentiation**
+- **Stationarity**: Improved time series stationarity
+- **Memory Preservation**: Better feature engineering for ML models
+- **Multiple d-values**: Configurable differentiation parameters
 
 ## 🤝 **Contributing**
 
-This project demonstrates professional software engineering practices with ML optimization. Contributions are welcome following these standards:
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
 
-- **Code Quality**: All code must pass linting and tests
-- **Testing**: New features require corresponding tests
-- **Documentation**: Clear docstrings and README updates
-- **Honesty**: Realistic performance claims only
-- **ML Best Practices**: Proper validation and overfitting prevention
+### **Development Setup**
+```bash
+# Clone repository
+git clone https://github.com/Lustalk/BTC-Quant.git
+cd BTC-Quant
+
+# Install development dependencies
+pip install -r requirements-dev.txt
+
+# Run tests
+pytest tests/ -v
+
+# Run linting
+flake8 src/ tests/
+```
 
 ## 📄 **License**
 
-MIT License - See [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 **Acknowledgments**
+
+- **Optuna**: For intelligent hyperparameter optimization
+- **yfinance**: For reliable financial data access
+- **pandas & numpy**: For efficient data manipulation
+- **XGBoost**: For robust machine learning models
+- **scikit-learn**: For comprehensive ML utilities
 
 ---
 
-**Built with ❤️ using modern software engineering practices and intelligent ML optimization** 
+**🚀 Ready to optimize your trading strategy? Start with `python demo.py --optimize`!** 
