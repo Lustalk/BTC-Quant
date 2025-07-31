@@ -47,8 +47,10 @@ def test_full_pipeline_integration():
 
     # Mock the download_data function to return our test data
     with patch("src.data_pipeline.download_data", return_value=mock_data):
-        # Step 1: "Download" data
-        data = download_data("BTC-USD", "2023-01-01", "2023-12-31")
+        # Step 1: "Download" data - use the mocked function
+        from src.data_pipeline import download_data as mocked_download_data
+
+        data = mocked_download_data("BTC-USD", "2023-01-01", "2023-12-31")
         assert isinstance(data, pd.DataFrame)
         assert len(data) > 0
 

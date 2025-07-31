@@ -21,7 +21,9 @@ def prepare_features_target(
     """
     # Create target: 1 if price goes up, 0 if down
     data = data.copy()
-    data["Target"] = (data["Close"].shift(-target_lookahead) > data["Close"]).astype(int)
+    data["Target"] = (data["Close"].shift(-target_lookahead) > data["Close"]).astype(
+        int
+    )
 
     # Remove the last few rows where we don't have targets
     data = data.dropna()
@@ -52,42 +54,44 @@ def train_model(X_train: pd.DataFrame, y_train: pd.Series) -> xgb.XGBClassifier:
     return model
 
 
-def walk_forward_validation(X: pd.DataFrame, y: pd.Series, n_splits: int = 5) -> List[float]:
+def walk_forward_validation(
+    X: pd.DataFrame, y: pd.Series, n_splits: int = 5
+) -> List[float]:
     """
     Perform walk-forward validation for time series data.
-    
+
     Args:
         X (pd.DataFrame): Feature matrix
         y (pd.Series): Target vector
         n_splits (int): Number of splits for validation
-        
+
     Returns:
         List[float]: List of accuracy scores for each fold
     """
     if len(X) != len(y):
         raise ValueError("X and y must have the same length")
-    
+
     tscv = TimeSeriesSplit(n_splits=n_splits)
     scores = []
-    
+
     for fold, (train_idx, test_idx) in enumerate(tscv.split(X), 1):
         X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
         y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
-        
+
         # Train model
         model = xgb.XGBClassifier(
             n_estimators=100,
             learning_rate=0.1,
             max_depth=6,
             random_state=42,
-            eval_metric='logloss'
+            eval_metric="logloss",
         )
-        
+
         model.fit(X_train, y_train)
-        
+
         # Predict and calculate accuracy
         y_pred = model.predict(X_test)
         accuracy = accuracy_score(y_test, y_pred)
         scores.append(accuracy)
-    
+
     return scores

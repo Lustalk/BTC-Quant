@@ -93,7 +93,9 @@ def test_analyze_strategy_performance_invalid_input():
     prices = [100, 110, 105]
     signals = [1, 0]  # Different length
 
-    with pytest.raises(ValueError, match="Prices and signals must have the same length"):
+    with pytest.raises(
+        ValueError, match="Prices and signals must have the same length"
+    ):
         analyze_strategy_performance(prices, signals)
 
 
@@ -120,7 +122,9 @@ def test_generate_performance_report():
         "min_trade_duration": 2,
     }
 
-    report = generate_performance_report(strategy_metrics, buy_hold_metrics, trade_stats)
+    report = generate_performance_report(
+        strategy_metrics, buy_hold_metrics, trade_stats
+    )
 
     # Check that report contains expected sections
     assert "BTC QUANT - PERFORMANCE REPORT" in report

@@ -7,13 +7,14 @@ def test_download_data_structure():
     """Test that download_data returns the expected structure."""
     # Test the function signature
     import inspect
+
     params = inspect.signature(download_data).parameters
     assert len(params) == 5  # ticker, start_date, end_date, interval, data_source
-    assert 'ticker' in params
-    assert 'start_date' in params
-    assert 'end_date' in params
-    assert 'interval' in params
-    assert 'data_source' in params
+    assert "ticker" in params
+    assert "start_date" in params
+    assert "end_date" in params
+    assert "interval" in params
+    assert "data_source" in params
 
 
 def test_download_data():

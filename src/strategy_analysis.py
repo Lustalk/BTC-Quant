@@ -7,13 +7,13 @@ from .position_sizing import PositionSizer
 
 
 def analyze_strategy_performance(
-    prices: List[float], 
-    signals: List[int], 
+    prices: List[float],
+    signals: List[int],
     initial_capital: float = 10000.0,
     volumes: List[float] = None,
     atr_values: List[float] = None,
     include_transaction_costs: bool = True,
-    position_sizing_strategy: str = "volatility_targeted"
+    position_sizing_strategy: str = "volatility_targeted",
 ) -> Dict[str, float]:
     """
     Analyze trading strategy performance with optional transaction costs and position sizing.
@@ -45,42 +45,51 @@ def analyze_strategy_performance(
     # Apply transaction costs if requested and data available
     if include_transaction_costs and volumes is not None and atr_values is not None:
         cost_model = TransactionCostModel()
-        adjusted_returns, portfolio_values, cost_summary = cost_model.apply_transaction_costs(
-            prices, signals, volumes, atr_values, initial_capital
+        adjusted_returns, portfolio_values, cost_summary = (
+            cost_model.apply_transaction_costs(
+                prices, signals, volumes, atr_values, initial_capital
+            )
         )
-        
+
         # Calculate cost impact analysis
         cost_impact = cost_model.calculate_cost_impact_analysis(
             strategy_returns, adjusted_returns, cost_summary
         )
-        
+
         # Calculate position sizing metrics
         position_sizes = calculate_position_sizes(
-            prices, signals, atr_values, initial_capital, position_sizer, position_sizing_strategy
+            prices,
+            signals,
+            atr_values,
+            initial_capital,
+            position_sizer,
+            position_sizing_strategy,
         )
-        
+
         # Calculate portfolio risk metrics
         portfolio_risk_metrics = position_sizer.calculate_portfolio_risk_metrics(
             position_sizes, adjusted_returns, initial_capital
         )
-        
+
         # Use adjusted returns for metrics
         strategy_metrics = calculate_all_metrics(adjusted_returns)
-        
+
         # Add transaction cost metrics
-        strategy_metrics.update({
-            'total_fees': cost_summary['total_fees'],
-            'total_slippage': cost_summary['total_slippage'],
-            'total_costs': cost_summary['total_costs'],
-            'trade_count': cost_summary['trade_count'],
-            'cost_impact': cost_summary['cost_impact'],
-            'return_degradation': cost_impact['return_degradation'],
-            'degradation_percentage': cost_impact['degradation_percentage']
-        })
-        
+        strategy_metrics.update(
+            {
+                "total_fees": cost_summary["total_fees"],
+                "total_slippage": cost_summary["total_slippage"],
+                "total_costs": cost_summary["total_costs"],
+                "trade_count": cost_summary["trade_count"],
+                "cost_impact": cost_summary["cost_impact"],
+                "return_degradation": cost_impact["return_degradation"],
+                "degradation_percentage": cost_impact["degradation_percentage"],
+            }
+        )
+
         # Add position sizing metrics
         strategy_metrics.update(portfolio_risk_metrics)
-        
+
     else:
         # Calculate metrics without transaction costs
         strategy_metrics = calculate_all_metrics(strategy_returns)
@@ -153,11 +162,11 @@ def calculate_position_sizes(
     atr_values: List[float],
     initial_capital: float,
     position_sizer: PositionSizer,
-    strategy: str = "volatility_targeted"
+    strategy: str = "volatility_targeted",
 ) -> List[float]:
     """
     Calculate position sizes for each trading signal.
-    
+
     Args:
         prices (List[float]): List of prices
         signals (List[int]): List of trading signals
@@ -165,20 +174,24 @@ def calculate_position_sizes(
         initial_capital (float): Initial capital
         position_sizer (PositionSizer): Position sizing instance
         strategy (str): Position sizing strategy
-        
+
     Returns:
         List[float]: Position sizes for each period (same length as returns)
     """
     position_sizes = []
     current_capital = initial_capital
     position = 0  # 0: no position, 1: long position
-    
+
     # Start from index 1 to match the returns calculation
     for i in range(1, len(prices)):
         price = prices[i]
-        signal = signals[i-1]  # Use previous signal
-        atr = atr_values[i] if i < len(atr_values) else atr_values[-1] if atr_values else 0.01
-        
+        signal = signals[i - 1]  # Use previous signal
+        atr = (
+            atr_values[i]
+            if i < len(atr_values)
+            else atr_values[-1] if atr_values else 0.01
+        )
+
         # Update position based on signal
         if signal == 1 and position == 0:  # Buy signal
             position = 1
@@ -192,14 +205,14 @@ def calculate_position_sizes(
         else:
             # No position change, maintain current position size
             position_size = position_sizes[-1] if position_sizes else 0.0
-            
+
         position_sizes.append(position_size)
-        
+
         # Update capital (simplified - in reality this would be more complex)
-        price_return = (price - prices[i-1]) / prices[i-1]
+        price_return = (price - prices[i - 1]) / prices[i - 1]
         if position == 1:
-            current_capital *= (1 + price_return)
-    
+            current_capital *= 1 + price_return
+
     return position_sizes
 
 
@@ -298,29 +311,39 @@ def generate_performance_report(
     report.append(f"Max Trade Duration:  {trade_stats['max_trade_duration']} days")
     report.append(f"Min Trade Duration:  {trade_stats['min_trade_duration']} days")
     report.append("")
-    
+
     # Position Sizing Metrics (if available)
-    if 'concentration_ratio' in strategy_metrics:
+    if "concentration_ratio" in strategy_metrics:
         report.append("POSITION SIZING METRICS:")
         report.append("-" * 30)
-        report.append(f"Position Concentration: {strategy_metrics['concentration_ratio']:.4f}")
-        report.append(f"Total Position Value: {strategy_metrics['total_position_value']:.2f}")
+        report.append(
+            f"Position Concentration: {strategy_metrics['concentration_ratio']:.4f}"
+        )
+        report.append(
+            f"Total Position Value: {strategy_metrics['total_position_value']:.2f}"
+        )
         report.append(f"Position Count:        {strategy_metrics['position_count']}")
-        report.append(f"Portfolio Volatility: {strategy_metrics['portfolio_volatility']:.4f}")
+        report.append(
+            f"Portfolio Volatility: {strategy_metrics['portfolio_volatility']:.4f}"
+        )
         report.append("")
-    
+
     # Transaction Cost Metrics (if available)
-    if 'total_costs' in strategy_metrics:
+    if "total_costs" in strategy_metrics:
         report.append("TRANSACTION COST ANALYSIS:")
         report.append("-" * 30)
         report.append(f"Total Fees:           {strategy_metrics['total_fees']:.2f}")
         report.append(f"Total Slippage:      {strategy_metrics['total_slippage']:.2f}")
         report.append(f"Total Costs:          {strategy_metrics['total_costs']:.2f}")
         report.append(f"Cost Impact:          {strategy_metrics['cost_impact']:.4f}")
-        report.append(f"Return Degradation:   {strategy_metrics['return_degradation']:.4f}")
-        report.append(f"Degradation %:        {strategy_metrics['degradation_percentage']:.2f}%")
+        report.append(
+            f"Return Degradation:   {strategy_metrics['return_degradation']:.4f}"
+        )
+        report.append(
+            f"Degradation %:        {strategy_metrics['degradation_percentage']:.2f}%"
+        )
         report.append("")
-    
+
     report.append("=" * 60)
 
     return "\n".join(report)
@@ -329,10 +352,10 @@ def generate_performance_report(
 def print_performance_table(metrics: Dict[str, float]) -> str:
     """
     Format performance metrics into a readable table.
-    
+
     Args:
         metrics (Dict[str, float]): Performance metrics
-        
+
     Returns:
         str: Formatted performance table
     """
@@ -340,31 +363,31 @@ def print_performance_table(metrics: Dict[str, float]) -> str:
     table_lines.append("=" * 60)
     table_lines.append("PERFORMANCE METRICS")
     table_lines.append("=" * 60)
-    
+
     # Group metrics by category
     metric_categories = {
-        'Returns': ['total_return', 'avg_return', 'annualized_return'],
-        'Risk': ['volatility', 'max_drawdown', 'var_95'],
-        'Ratios': ['sharpe_ratio', 'sortino_ratio', 'calmar_ratio'],
-        'Trading': ['win_rate', 'profit_factor', 'avg_win', 'avg_loss'],
-        'Model': ['auc', 'precision', 'recall', 'f1_score']
+        "Returns": ["total_return", "avg_return", "annualized_return"],
+        "Risk": ["volatility", "max_drawdown", "var_95"],
+        "Ratios": ["sharpe_ratio", "sortino_ratio", "calmar_ratio"],
+        "Trading": ["win_rate", "profit_factor", "avg_win", "avg_loss"],
+        "Model": ["auc", "precision", "recall", "f1_score"],
     }
-    
+
     for category, metric_names in metric_categories.items():
         table_lines.append(f"\n{category.upper()} METRICS:")
         table_lines.append("-" * 30)
-        
+
         for metric_name in metric_names:
             if metric_name in metrics:
                 value = metrics[metric_name]
                 if isinstance(value, float):
-                    if 'ratio' in metric_name.lower() or 'rate' in metric_name.lower():
+                    if "ratio" in metric_name.lower() or "rate" in metric_name.lower():
                         table_lines.append(f"{metric_name:<20}: {value:.4f}")
                     else:
                         table_lines.append(f"{metric_name:<20}: {value:.4f}")
                 else:
                     table_lines.append(f"{metric_name:<20}: {value}")
-    
+
     table_lines.append("=" * 60)
-    
+
     return "\n".join(table_lines)

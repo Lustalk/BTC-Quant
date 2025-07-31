@@ -44,7 +44,9 @@ def calculate_sharpe_ratio(returns: List[float], risk_free_rate: float = 0.02) -
     return sharpe * np.sqrt(252)  # Annualized
 
 
-def calculate_sortino_ratio(returns: List[float], risk_free_rate: float = 0.02) -> float:
+def calculate_sortino_ratio(
+    returns: List[float], risk_free_rate: float = 0.02
+) -> float:
     """
     Calculate the Sortino ratio (downside deviation only).
 
@@ -68,7 +70,7 @@ def calculate_sortino_ratio(returns: List[float], risk_free_rate: float = 0.02) 
         # If no negative returns, Sortino ratio is infinite (perfect)
         return 10.0  # Cap at reasonable value
 
-    downside_deviation = np.sqrt(np.mean(negative_returns ** 2))
+    downside_deviation = np.sqrt(np.mean(negative_returns**2))
 
     if downside_deviation == 0:
         return 0.0
