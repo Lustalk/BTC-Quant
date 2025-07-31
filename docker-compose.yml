@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   btc-quant:
     build: .
@@ -8,4 +6,4 @@ services:
     working_dir: /app
     environment:
       - PYTHONPATH=/app
-    command: echo "BTC Quant project initialized successfully" 
+    command: python -m pytest tests/ -v 
