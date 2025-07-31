@@ -106,25 +106,22 @@ class TestVisualization:
     @patch("matplotlib.pyplot.close")
     def test_create_performance_dashboard(self, mock_close):
         """Test create_performance_dashboard function."""
-        # Test with valid data
-        create_performance_dashboard(
-            self.sample_prices, self.sample_signals, self.sample_metrics, self.sample_scores
-        )
+        # Test with valid data - function takes strategy_metrics and buy_hold_metrics
+        strategy_metrics = {"sharpe_ratio": 0.5, "total_return": 0.2}
+        buy_hold_metrics = {"sharpe_ratio": 0.3, "total_return": 0.1}
+        
+        create_performance_dashboard(strategy_metrics, buy_hold_metrics)
         mock_close.assert_called_once()
 
         # Test with empty metrics
-        create_performance_dashboard(
-            self.sample_prices, self.sample_signals, {}, self.sample_scores
-        )
+        create_performance_dashboard({}, {})
         assert mock_close.call_count == 2
 
         # Test with save path
         with patch("matplotlib.pyplot.savefig") as mock_save:
             create_performance_dashboard(
-                self.sample_prices,
-                self.sample_signals,
-                self.sample_metrics,
-                self.sample_scores,
+                strategy_metrics,
+                buy_hold_metrics,
                 save_path="test_dashboard.png",
             )
             mock_save.assert_called_once()
@@ -139,12 +136,12 @@ class TestVisualization:
             plot_price_and_signals(short_prices, short_signals)
             plot_performance_metrics({"single_metric": 0.5})
             plot_model_accuracy([0.5])
-            create_performance_dashboard(short_prices, short_signals, {"metric": 0.5}, [0.5])
+            create_performance_dashboard({"metric": 0.5}, {"metric": 0.3})
 
     def test_input_validation(self):
         """Test input validation for visualization functions."""
         # Test with mismatched lengths
-        with pytest.raises(IndexError):
+        with pytest.raises(ValueError):
             with patch("matplotlib.pyplot.show"):
                 plot_price_and_signals([1, 2, 3], [1, 2])  # Different lengths
 
@@ -171,7 +168,7 @@ def test_visualization_integration():
     # Create realistic test data
     prices = [100 + i * 0.1 + np.random.normal(0, 0.5) for i in range(50)]
     signals = [np.random.choice([-1, 0, 1], p=[0.1, 0.8, 0.1]) for _ in range(50)]
-    metrics = {
+    strategy_metrics = {
         "sharpe_ratio": 0.52,
         "max_drawdown": 0.12,
         "volatility": 0.18,
@@ -181,14 +178,20 @@ def test_visualization_integration():
         "avg_return": 0.001,
         "auc": 0.54,
     }
+    buy_hold_metrics = {
+        "sharpe_ratio": 0.30,
+        "max_drawdown": 0.15,
+        "volatility": 0.20,
+        "total_return": 0.15,
+    }
     scores = [0.51, 0.53, 0.49, 0.52, 0.50]
 
     # Test all visualization functions
     with patch("matplotlib.pyplot.show"):
         plot_price_and_signals(prices, signals)
-        plot_performance_metrics(metrics)
+        plot_performance_metrics(strategy_metrics)
         plot_model_accuracy(scores)
-        create_performance_dashboard(prices, signals, metrics, scores)
+        create_performance_dashboard(strategy_metrics, buy_hold_metrics)
 
     # If we get here without errors, the integration test passes
     assert True

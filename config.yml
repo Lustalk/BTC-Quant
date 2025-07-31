@@ -4,12 +4,40 @@
 # Data Configuration
 data:
   default_ticker: "BTC-USD"
-  default_start_date: "2023-01-01"
-  default_end_date: "2024-01-01"
+  default_start_date: null  # Auto-calculated for 3 years
+  default_end_date: null    # Auto-calculated (today)
   data_source: "yfinance"
-  default_interval: "30m"  # 30-minute data for intraday analysis
-  market_hours: [9, 17]  # Market hours filter
+  default_interval: "1d"    # Primary timeframe for analysis
+  timeframes: ["1h", "4h", "1d", "1w"]  # Multi-timeframe support
+  min_years: 1              # Minimum years of data required
+  preferred_years: 3        # Preferred years of data
+  market_hours: [9, 17]     # Market hours filter
   min_data_points: 100
+  
+  # Data quality thresholds
+  quality_thresholds:
+    min_quality_score: 0.95
+    max_missing_values: 0.05
+    max_data_gaps: 0.10
+    
+  # Timeframe-specific settings
+  timeframe_settings:
+    "1h":
+      min_data_points: 8760  # 1 year of hourly data
+      resample_freq: "H"
+      gap_fill_method: "forward_fill"
+    "4h":
+      min_data_points: 2190  # 1 year of 4-hour data
+      resample_freq: "4H"
+      gap_fill_method: "forward_fill"
+    "1d":
+      min_data_points: 365   # 1 year of daily data
+      resample_freq: "D"
+      gap_fill_method: "forward_fill"
+    "1w":
+      min_data_points: 52    # 1 year of weekly data
+      resample_freq: "W"
+      gap_fill_method: "forward_fill"
 
 # Model Configuration
 model:

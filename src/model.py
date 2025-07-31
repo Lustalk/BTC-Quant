@@ -52,13 +52,13 @@ def train_model(X_train: pd.DataFrame, y_train: pd.Series) -> xgb.XGBClassifier:
     return model
 
 
-def walk_forward_validation(X: np.ndarray, y: np.ndarray, n_splits: int = 5) -> List[float]:
+def walk_forward_validation(X: pd.DataFrame, y: pd.Series, n_splits: int = 5) -> List[float]:
     """
     Perform walk-forward validation for time series data.
     
     Args:
-        X (np.ndarray): Feature matrix
-        y (np.ndarray): Target vector
+        X (pd.DataFrame): Feature matrix
+        y (pd.Series): Target vector
         n_splits (int): Number of splits for validation
         
     Returns:
@@ -71,8 +71,8 @@ def walk_forward_validation(X: np.ndarray, y: np.ndarray, n_splits: int = 5) -> 
     scores = []
     
     for fold, (train_idx, test_idx) in enumerate(tscv.split(X), 1):
-        X_train, X_test = X[train_idx], X[test_idx]
-        y_train, y_test = y[train_idx], y[test_idx]
+        X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
+        y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
         
         # Train model
         model = xgb.XGBClassifier(

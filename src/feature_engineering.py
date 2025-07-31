@@ -22,10 +22,14 @@ def fractional_differentiation(series: pd.Series, d: float = 0.5, threshold: flo
     if d <= 0 or d >= 1:
         raise ValueError("d must be between 0 and 1")
     
+    if len(series) < 10:
+        # Return original series if not enough data
+        return series
+    
     try:
         # Calculate weights
         weights = [1.0]
-        for k in range(1, len(series)):
+        for k in range(1, min(len(series), 50)):  # Limit to prevent infinite loop
             weight = -weights[-1] * (d - k + 1) / k
             if abs(weight) < threshold:
                 break
@@ -36,7 +40,10 @@ def fractional_differentiation(series: pd.Series, d: float = 0.5, threshold: flo
         for i in range(len(weights), len(series)):
             result.iloc[i] = sum(weights[j] * series.iloc[i-j] for j in range(len(weights)))
         
-        return result.dropna()
+        # Fill NaN values with original series values
+        result = result.fillna(series)
+        
+        return result
         
     except Exception as e:
         # Return original series if differentiation fails
@@ -331,6 +338,16 @@ def add_technical_indicators(data: pd.DataFrame) -> pd.DataFrame:
         if col not in df.columns:
             raise ValueError(f"Missing required column: {col}")
 
+    # Check if we have enough data for technical indicators
+    if len(df) < 50:
+        print(f"Warning: Only {len(df)} data points available. Some indicators may not be calculated.")
+        # Return basic features only
+        df["Returns"] = df["Close"].pct_change()
+        df["Log_Returns"] = np.log(df["Close"] / df["Close"].shift(1))
+        df["High_Low_Ratio"] = df["High"] / df["Low"]
+        df["Close_Open_Ratio"] = df["Close"] / df["Open"]
+        return df.dropna()
+
     # Basic Trend Indicators
     df["SMA_20"] = ta.trend.sma_indicator(df["Close"], window=20)
     df["SMA_50"] = ta.trend.sma_indicator(df["Close"], window=50)
@@ -389,6 +406,8 @@ def add_technical_indicators(data: pd.DataFrame) -> pd.DataFrame:
     df = add_fractional_features(df)
 
     # Remove rows with NaN values (due to rolling calculations)
-    df = df.dropna()
+    # Only remove rows where core features are NaN, not all NaN values
+    core_columns = ["Open", "High", "Low", "Close", "Volume", "SMA_20", "EMA_12", "RSI_14"]
+    df = df.dropna(subset=core_columns)
 
     return df

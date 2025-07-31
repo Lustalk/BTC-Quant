@@ -3,7 +3,7 @@
 BTC Quant - Main Backtesting Engine
 
 This script implements a comprehensive backtesting engine that:
-1. Downloads financial data
+1. Downloads financial data for multiple timeframes (1h, 4h, 1d, 1w)
 2. Engineers technical indicators
 3. Uses ML optimization to find best parameters
 4. Trains an XGBoost model with optimized parameters
@@ -16,7 +16,7 @@ import sys
 from datetime import datetime
 import pandas as pd
 
-from src.data_pipeline import download_data
+from src.data_pipeline import download_multi_timeframe_data, get_optimal_date_range, ensure_data_completeness
 from src.feature_engineering import add_technical_indicators
 from src.model import prepare_features_target, walk_forward_validation
 from src.evaluation import calculate_all_metrics
@@ -93,6 +93,26 @@ def print_strategy_comparison(basic_metrics, optimized_metrics):
     print("=" * 60)
 
 
+def print_data_summary(data_dict):
+    """Print summary of downloaded data for all timeframes."""
+    print("\n" + "=" * 60)
+    print("📊 MULTI-TIMEFRAME DATA SUMMARY")
+    print("=" * 60)
+    
+    for timeframe, data in data_dict.items():
+        if not data.empty:
+            duration_days = (data.index.max() - data.index.min()).days
+            print(f"📈 {timeframe.upper()} Data:")
+            print(f"   📅 Date Range: {data.index.min().strftime('%Y-%m-%d')} to {data.index.max().strftime('%Y-%m-%d')}")
+            print(f"   📊 Data Points: {len(data):,}")
+            print(f"   ⏱️  Duration: {duration_days} days ({duration_days/365:.1f} years)")
+            print(f"   💰 Price Range: ${data['Close'].min():.2f} - ${data['Close'].max():.2f}")
+            print(f"   📈 Volume Range: {data['Volume'].min():,.0f} - {data['Volume'].max():,.0f}")
+            print()
+    
+    print("=" * 60)
+
+
 def main():
     """Main function for the BTC Quant backtesting engine."""
     parser = argparse.ArgumentParser(
@@ -107,14 +127,32 @@ def main():
     parser.add_argument(
         "--start-date", 
         type=str, 
-        default="2023-01-01",
-        help="Start date in YYYY-MM-DD format (default: 2023-01-01)"
+        default=None,
+        help="Start date in YYYY-MM-DD format (default: auto-calculated for 3 years)"
     )
     parser.add_argument(
         "--end-date", 
         type=str, 
-        default="2024-01-01",
-        help="End date in YYYY-MM-DD format (default: 2024-01-01)"
+        default=None,
+        help="End date in YYYY-MM-DD format (default: today)"
+    )
+    parser.add_argument(
+        "--timeframes",
+        nargs="+",
+        default=["1h", "4h", "1d", "1w"],
+        help="Timeframes to download (default: 1h 4h 1d 1w)"
+    )
+    parser.add_argument(
+        "--min-years",
+        type=int,
+        default=1,
+        help="Minimum years of data required (default: 1)"
+    )
+    parser.add_argument(
+        "--preferred-years",
+        type=int,
+        default=3,
+        help="Preferred years of data (default: 3)"
     )
     parser.add_argument(
         "--n-splits", 
@@ -138,12 +176,28 @@ def main():
         action="store_true",
         help="Compare basic vs optimized strategy performance"
     )
+    parser.add_argument(
+        "--primary-timeframe",
+        type=str,
+        default="1d",
+        help="Primary timeframe for analysis (default: 1d)"
+    )
     
     args = parser.parse_args()
+    
+    # Calculate optimal date range if not provided
+    if args.start_date is None or args.end_date is None:
+        args.start_date, args.end_date = get_optimal_date_range(
+            min_years=args.min_years, 
+            preferred_years=args.preferred_years
+        )
     
     print(f"🚀 BTC Quant Backtesting Engine")
     print(f"📊 Ticker: {args.ticker}")
     print(f"📅 Date Range: {args.start_date} to {args.end_date}")
+    print(f"⏰ Timeframes: {', '.join(args.timeframes)}")
+    print(f"🎯 Primary Timeframe: {args.primary_timeframe}")
+    print(f"📈 Data Requirements: {args.min_years} year(s) minimum, {args.preferred_years} year(s) preferred")
     print(f"🔧 Validation Splits: {args.n_splits}")
     if args.optimize:
         print(f"🤖 ML Optimization: Enabled ({args.n_trials} trials)")
@@ -152,10 +206,34 @@ def main():
     print("-" * 50)
     
     try:
-        # Step 1: Download data
-        print("Step 1: Downloading financial data...")
-        data = download_data(args.ticker, args.start_date, args.end_date)
-        print(f"✅ Downloaded {len(data)} data points")
+        # Step 1: Download multi-timeframe data
+        print("Step 1: Downloading multi-timeframe financial data...")
+        data_dict = download_multi_timeframe_data(
+            args.ticker, 
+            args.start_date, 
+            args.end_date, 
+            args.timeframes
+        )
+        
+        # Ensure data completeness
+        validated_data = ensure_data_completeness(data_dict, min_years=args.min_years)
+        
+        if not validated_data:
+            raise ValueError("No valid data found for any timeframe")
+        
+        # Print data summary
+        print_data_summary(validated_data)
+        
+        # Use primary timeframe for analysis
+        if args.primary_timeframe in validated_data:
+            data = validated_data[args.primary_timeframe]
+            print(f"✅ Using {args.primary_timeframe} data for analysis: {len(data)} points")
+        else:
+            # Fallback to first available timeframe
+            primary_data = list(validated_data.values())[0]
+            primary_timeframe = list(validated_data.keys())[0]
+            data = primary_data
+            print(f"⚠️  Primary timeframe {args.primary_timeframe} not available, using {primary_timeframe}")
         
         basic_metrics = None
         optimized_metrics = None

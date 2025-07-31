@@ -48,8 +48,8 @@ def test_fractional_differentiation():
         # Check that result is a pandas Series
         assert isinstance(result, pd.Series)
         
-        # Check that result has fewer values than input (due to convolution)
-        assert len(result) < len(series)
+        # Check that result has the same length as input (after our fix)
+        assert len(result) == len(series)
         
         # Check that result is not all NaN
         assert not result.isna().all()
