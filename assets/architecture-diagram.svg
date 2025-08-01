@@ -1,0 +1,76 @@
+<svg width="800" height="450" xmlns="http://www.w3.org/2000/svg" font-family="Arial, sans-serif" font-size="14px">
+  <defs>
+    <style>
+      .block { fill: #f9f9f9; stroke: #333; stroke-width: 1.5; rx: 5; }
+      .api { fill: #e6f7ff; stroke: #0077b6; }
+      .core { fill: #e6fffb; stroke: #00bfa5; }
+      .infra { fill: #fffbe6; stroke: #fadb14; }
+      .arrow { fill: #333; }
+      .text-label { font-size: 12px; fill: #555; }
+      .text-title { font-weight: bold; fill: #000; }
+      .text-white { fill: #fff; font-weight: bold; }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" class="arrow" />
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="800" height="450" fill="#ffffff"/>
+
+  <text x="400" y="30" text-anchor="middle" font-size="20" font-weight="bold">BTC Quant - System Architecture</text>
+
+  <g id="api-sources">
+    <rect x="50" y="70" width="120" height="50" class="block api" />
+    <text x="110" y="95" text-anchor="middle" class="text-title">Yahoo Finance</text>
+    <rect x="200" y="70" width="120" height="50" class="block api" />
+    <text x="260" y="95" text-anchor="middle" class="text-title">CoinGecko</text>
+    <rect x="350" y="70" width="120" height="50" class="block api" />
+    <text x="410" y="95" text-anchor="middle" class="text-title">Alpha Vantage</text>
+  </g>
+
+  <rect x="50" y="160" width="420" height="100" class="block core"/>
+  <text x="260" y="180" text-anchor="middle" class="text-title">Fault-Tolerant Data Pipeline</text>
+  <line x1="110" y1="120" x2="110" y2="160" stroke="#333" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+  <line x1="260" y1="120" x2="260" y2="160" stroke="#333" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+  <line x1="410" y1="120" x2="410" y2="160" stroke="#333" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+  
+  <rect x="70" y="200" width="180" height="40" class="block" />
+  <text x="160" y="225" text-anchor="middle">Data Source Manager (Factory)</text>
+  <rect x="270" y="200" width="180" height="40" class="block" />
+  <text x="360" y="225" text-anchor="middle">Intelligent Cache (TTL)</text>
+
+  <rect x="50" y="290" width="420" height="120" class="block core"/>
+  <text x="260" y="310" text-anchor="middle" class="text-title">Strategy & Backtesting Engine</text>
+  <line x1="260" y1="260" x2="260" y2="290" stroke="#333" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+  
+  <rect x="70" y="330" width="180" height="30" class="block" />
+  <text x="160" y="350" text-anchor="middle">Feature Engineering (ETL)</text>
+  <rect x="70" y="370" width="180" height="30" class="block" />
+  <text x="160" y="390" text-anchor="middle">ML Model (XGBoost)</text>
+  
+  <rect x="270" y="330" width="180" height="30" class="block" />
+  <text x="360" y="350" text-anchor="middle">Walk-Forward Validation</text>
+  <rect x="270" y="370" width="180" height="30" class="block" />
+  <text x="360" y="390" text-anchor="middle">Performance Analytics</text>
+
+  <g id="infrastructure">
+    <rect x="550" y="70" width="200" height="340" class="block infra"/>
+    <text x="650" y="90" text-anchor="middle" class="text-title">Infrastructure & Ops</text>
+
+    <rect x="570" y="110" width="160" height="40" style="fill:#0db7ed; stroke:#099ec8; rx:5;"/>
+    <text x="650" y="135" text-anchor="middle" class="text-white">Docker / Docker-Compose</text>
+    <text x="650" y="165" text-anchor="middle" class="text-label">Containerization & Deployment</text>
+
+    <rect x="570" y="200" width="160" height="40" style="fill:#2088ff; stroke:#1668e0; rx:5;"/>
+    <text x="650" y="225" text-anchor="middle" class="text-white">GitHub Actions</text>
+    <text x="650" y="255" text-anchor="middle" class="text-label">Continuous Integration (CI)</text>
+    
+    <rect x="570" y="290" width="160" height="40" style="fill:#8a4af3; stroke:#6933c0; rx:5;"/>
+    <text x="650" y="315" text-anchor="middle" class="text-white">Pytest / Coverage</text>
+    <text x="650" y="345" text-anchor="middle" class="text-label">Automated Testing</text>
+
+    <rect x="570" y="360" width="160" height="40" style="fill:#6f767b; stroke:#4d5358; rx:5;"/>
+    <text x="650" y="385" text-anchor="middle" class="text-white">config.yml</text>
+  </g>
+
+</svg>
