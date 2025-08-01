@@ -227,6 +227,83 @@ class ParameterOptimizer:
 
         return signals, entry_prices
 
+    def _suggest_parameters(self, trial: optuna.Trial) -> Dict[str, Any]:
+        """
+        Suggest parameters for optimization.
+        
+        Args:
+            trial (optuna.Trial): Optuna trial object
+            
+        Returns:
+            Dict[str, Any]: Suggested parameters
+        """
+        return {
+            # Technical Indicator Parameters
+            'sma_short': trial.suggest_int('sma_short', 5, 25),
+            'sma_long': trial.suggest_int('sma_long', 30, 100),
+            'ema_short': trial.suggest_int('ema_short', 8, 20),
+            'ema_long': trial.suggest_int('ema_long', 20, 50),
+            'rsi_window': trial.suggest_int('rsi_window', 10, 21),
+            'rsi_oversold': trial.suggest_int('rsi_oversold', 20, 35),
+            'rsi_overbought': trial.suggest_int('rsi_overbought', 65, 80),
+            'stoch_window': trial.suggest_int('stoch_window', 10, 20),
+            'williams_window': trial.suggest_int('williams_window', 10, 20),
+            'bb_window': trial.suggest_int('bb_window', 15, 25),
+            'atr_window': trial.suggest_int('atr_window', 10, 20),
+            'macd_fast': trial.suggest_int('macd_fast', 8, 15),
+            'macd_slow': trial.suggest_int('macd_slow', 20, 30),
+            
+            # Risk Management Parameters
+            'take_profit': trial.suggest_float('take_profit', 0.02, 0.15),
+            'stop_loss': trial.suggest_float('stop_loss', 0.01, 0.10),
+            'risk_per_trade': trial.suggest_float('risk_per_trade', 0.01, 0.05),
+            'stop_loss_pct': trial.suggest_float('stop_loss_pct', 0.02, 0.08),
+            
+            # Position Sizing Parameters
+            'position_sizing_strategy': trial.suggest_categorical('position_sizing_strategy', ['fixed', 'volatility_targeted']),
+            'target_volatility': trial.suggest_float('target_volatility', 0.10, 0.30),
+            
+            # ML Model Parameters
+            'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.3),
+            'max_depth': trial.suggest_int('max_depth', 3, 10),
+            'n_estimators': trial.suggest_int('n_estimators', 50, 300),
+            'subsample': trial.suggest_float('subsample', 0.6, 1.0),
+            'colsample_bytree': trial.suggest_float('colsample_bytree', 0.6, 1.0),
+            
+            # Feature Engineering Parameters
+            'lag_1': trial.suggest_int('lag_1', 1, 3),
+            'lag_2': trial.suggest_int('lag_2', 4, 7),
+            'lag_3': trial.suggest_int('lag_3', 8, 15),
+            'roll_short': trial.suggest_int('roll_short', 5, 15),
+            'roll_medium': trial.suggest_int('roll_medium', 16, 30),
+            'roll_long': trial.suggest_int('roll_long', 31, 60),
+            
+            # Transaction Cost Parameters
+            'fee_type': trial.suggest_categorical('fee_type', ['percentage', 'fixed'])
+        }
+
+    def _calculate_optimization_score(self, strategy_metrics: Dict[str, float], params: Dict[str, Any]) -> float:
+        """
+        Calculate optimization score from strategy metrics.
+        
+        Args:
+            strategy_metrics: Strategy performance metrics
+            params: Parameters used
+            
+        Returns:
+            float: Optimization score
+        """
+        # Multi-objective optimization score
+        sharpe = strategy_metrics.get('sharpe_ratio', 0)
+        sortino = strategy_metrics.get('sortino_ratio', 0)
+        max_dd = strategy_metrics.get('max_drawdown', -1)
+        win_rate = strategy_metrics.get('win_rate', 0)
+        
+        # Combine metrics with penalties for high risk
+        score = (sharpe * 0.4 + sortino * 0.3 + win_rate * 0.2 + (1 + max_dd) * 0.1)
+        
+        return score
+
     def _objective(self, trial: optuna.Trial) -> float:
         """
         Objective function for optimization.
